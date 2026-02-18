@@ -64,7 +64,7 @@ const ROMBUFFERMASK = ROMBUFFERSIZE - 1
 
 func (fs *CramFS) Read(offset uint32) (buf []byte, err error) {
 	block := offset >> ROMBUFFER_BITS
-	if len(fs.buf) <= int(block<<ROMBUFFER_BITS)+ROMBUFFERSIZE*2 {
+	if len(fs.buf) <= int(block<<ROMBUFFER_BITS) {
 		return nil, io.ErrUnexpectedEOF
 	}
 	buf = fs.buf[block<<ROMBUFFER_BITS : min(len(fs.buf), int(block<<ROMBUFFER_BITS+ROMBUFFERSIZE*2))]
