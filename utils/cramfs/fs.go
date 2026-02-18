@@ -213,6 +213,7 @@ type InodeEntry struct {
 	Inode         Inode
 	ChildrenCount int
 	Children      []InodeEntry
+	Link          string
 	File          [][]byte
 	Error         error
 	Errors        int
@@ -284,6 +285,12 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 				if !fs.DropDecodedData {
 					e.Children = append(e.Children, dirEntry.Children...)
 				}
+			} else if child.IsLink() && !fs.DropDecodedData {
+				dst, err := fs.Link(&child)
+				if err != nil {
+					return err
+				}
+				e.Link = dst
 			}
 			return nil
 		}()
@@ -352,4 +359,27 @@ func (fs *CramFS) File(i *Inode) (out [][]byte, err error) {
 		}
 	}
 	return out, nil
+}
+
+func (fs *CramFS) Link(i *Inode) (out string, err error) {
+	if !i.IsLink() {
+		return "", errNoFile
+	}
+	offset := i.Offset << 2
+
+	if offset == 0 {
+		return "", errFileZeroOffSize
+	}
+	if i.Size == 0 {
+		return "", errFileOffZeroSize
+	}
+	buf, err := fs.ReadBlock(offset, 0, i.Size)
+	if err != nil {
+		return "", err
+	}
+	if len(buf) != int(i.Size) {
+		return "", errors.New("incorrect size")
+	}
+
+	return string(buf), nil
 }

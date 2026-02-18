@@ -44,6 +44,10 @@ func (i *Inode) Name() string {
 	return utils.CString(i.Extra[:size])
 }
 
+func (i *Inode) FileMode() int {
+	return int(i.Mode & 0777)
+}
+
 func (i *Inode) IsDir() bool {
 	return i.Mode&0170000 == 0040000
 }
@@ -58,6 +62,22 @@ func (i *Inode) IsLink() bool {
 
 func (i *Inode) IsDevice() bool {
 	return i.Mode&0170000 == 0020000 || i.Mode&0170000 == 0060000 || i.Mode&0170000 == 0010000 || i.Mode&0170000 == 0140000
+}
+
+func (i *Inode) IsCharacterDevice() bool {
+	return i.Mode&0170000 == 0020000
+}
+
+func (i *Inode) IsBlockDevice() bool {
+	return i.Mode&0170000 == 0060000
+}
+
+func (i *Inode) IsFIFO() bool {
+	return i.Mode&0170000 == 0010000
+}
+
+func (i *Inode) IsSocket() bool {
+	return i.Mode&0170000 == 0140000
 }
 
 func (i *Inode) FromBytes(buf []byte) (err error) {
