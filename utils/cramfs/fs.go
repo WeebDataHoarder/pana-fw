@@ -64,7 +64,7 @@ const ROMBUFFERMASK = ROMBUFFERSIZE - 1
 
 func (fs *CramFS) Read(offset uint32) (buf []byte, err error) {
 	block := offset >> ROMBUFFER_BITS
-	if len(fs.buf) <= int(block<<ROMBUFFER_BITS) {
+	if len(fs.buf) <= int(block<<ROMBUFFER_BITS)+int(offset&ROMBUFFERMASK) {
 		return nil, io.ErrUnexpectedEOF
 	}
 	buf = fs.buf[block<<ROMBUFFER_BITS : min(len(fs.buf), int(block<<ROMBUFFER_BITS+ROMBUFFERSIZE*2))]
@@ -96,7 +96,16 @@ func (fs *CramFS) UncompressBlock(buf, out []byte) ([]byte, error) {
 	return decompressed, nil
 }
 
-func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) ([]byte, error) {
+func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			if err2, ok := e.(error); ok {
+				err = err2
+			} else {
+				err = fmt.Errorf("panic: %v", e)
+			}
+		}
+	}()
 
 	blockPtrOffset := offset + blockNumber*4
 	maxBlock := (size + PAGE_SIZE - 1) / PAGE_SIZE
