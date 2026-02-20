@@ -2,22 +2,28 @@ package cramfs
 
 import (
 	"bytes"
+	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"path"
 
-	"github.com/4kills/go-zlib/native"
 	"github.com/rasky/go-lzo"
 )
+
+type ZlibDecompressor interface {
+	Decompress(in, out []byte) (int, []byte, error)
+	Close() error
+	Reset() error
+}
 
 type CramFS struct {
 	buf []byte
 
 	tmp []byte
 
-	zlib *native.Decompressor
+	Zlib ZlibDecompressor
 
 	DropDecodedData bool
 	UseLZO          bool
@@ -50,11 +56,6 @@ func NewCramFS(buf []byte) (*CramFS, error) {
 		fs.Super.FSID.Files = 0
 	}
 
-	fs.zlib, err = native.NewDecompressor()
-	if err != nil {
-		return nil, err
-	}
-
 	return fs, nil
 }
 
@@ -74,7 +75,10 @@ func (fs *CramFS) SwapBuf(buf []byte) {
 }
 
 func (fs *CramFS) Close() error {
-	return fs.zlib.Close()
+	if fs.Zlib != nil {
+		return fs.Zlib.Close()
+	}
+	return nil
 }
 
 const ROMBUFFER_BITS = 13
@@ -113,15 +117,28 @@ func (fs *CramFS) UncompressBlock(buf, out []byte) ([]byte, error) {
 		return dec, nil
 	}
 
-	_, decompressed, err := fs.zlib.Decompress(buf, out)
+	if fs.Zlib != nil {
+		_, decompressed, err := fs.Zlib.Decompress(buf, out)
+		if err != nil {
+			_ = fs.Zlib.Reset()
+			return nil, err
+		}
+		if len(decompressed) > PAGE_SIZE*2 {
+			return nil, errors.New("out is too large")
+		}
+		return decompressed, nil
+	}
+
+	r, err := zlib.NewReader(bytes.NewReader(buf))
 	if err != nil {
-		_ = fs.zlib.Reset()
 		return nil, err
 	}
-	if len(decompressed) > PAGE_SIZE*2 {
-		return nil, errors.New("out is too large")
+	defer r.Close()
+	var n int
+	if n, err = r.Read(out); err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
 	}
-	return decompressed, nil
+	return out[:n], nil
 }
 
 func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err error) {

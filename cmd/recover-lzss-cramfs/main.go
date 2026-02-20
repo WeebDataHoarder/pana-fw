@@ -378,6 +378,10 @@ func main() {
 						if err != nil {
 							return
 						}
+						fs.Zlib, err = native.NewDecompressor()
+						if err != nil {
+							return
+						}
 						fs.DropDecodedData = true
 						//TODO
 						defer fs.Close()
