@@ -135,6 +135,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err err
 func main() {
 	inPath := flag.String("in", "", "input cramfs file path")
 	outPath := flag.String("out", "", "output tar path")
+	useLZO := flag.Bool("lzo", false, "use LZO decompressor")
 	flag.Parse()
 
 	buf, err := os.ReadFile(*inPath)
@@ -151,6 +152,9 @@ func main() {
 		panic(err)
 	}
 	defer fs.Close()
+	if *useLZO {
+		fs.UseLZO = true
+	}
 
 	tarF, err := os.Create(*outPath)
 	if err != nil {
@@ -161,7 +165,7 @@ func main() {
 	ar := tar.NewWriter(tarF)
 	defer ar.Close()
 
-	out, err := fs.Directory("/", &fs.Super.Root)
+	out, err := fs.Directory("/", fs.Root())
 	if err != nil {
 		panic(err)
 	}

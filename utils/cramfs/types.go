@@ -128,6 +128,8 @@ type Super struct {
 	Root      Inode
 }
 
+const SuperSize = 4*4 + 16 + 4*4 + 16 + InodeSize
+
 func (s *Super) FromReader(r io.Reader) (err error) {
 	if err = binary.Read(r, binary.LittleEndian, &s.Magic); err != nil {
 		return err

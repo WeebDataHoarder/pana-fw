@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/4kills/go-zlib/native"
+	"github.com/rasky/go-lzo"
 )
 
 type CramFS struct {
@@ -19,6 +20,7 @@ type CramFS struct {
 	zlib *native.Decompressor
 
 	DropDecodedData bool
+	UseLZO          bool
 
 	Super Super
 }
@@ -42,12 +44,29 @@ func NewCramFS(buf []byte) (*CramFS, error) {
 		return nil, errors.New("root is not a directory")
 	}
 
+	if (fs.Super.Flags & CRAMFS_FLAG_FSID_VERSION_2) == 0 {
+		//TODO: maybe clean rest?
+		fs.Super.FSID.Blocks = 0
+		fs.Super.FSID.Files = 0
+	}
+
 	fs.zlib, err = native.NewDecompressor()
 	if err != nil {
 		return nil, err
 	}
 
 	return fs, nil
+}
+
+func (fs *CramFS) Root() *Inode {
+	offset := fs.Super.Root.Offset << 2
+	if !fs.Super.Root.IsDir() {
+		return nil
+	}
+	if (fs.Super.Flags&CRAMFS_FLAG_SHIFTED_ROOT_OFFSET) == 0 && offset != SuperSize && offset != PAD_SIZE+SuperSize {
+		return nil
+	}
+	return &fs.Super.Root
 }
 
 func (fs *CramFS) SwapBuf(buf []byte) {
@@ -85,6 +104,15 @@ func (fs *CramFS) ReadInode(n uint32) (i Inode, err error) {
 }
 
 func (fs *CramFS) UncompressBlock(buf, out []byte) ([]byte, error) {
+	if fs.UseLZO {
+		dec, err := lzo.Decompress1X(bytes.NewReader(buf), 0, 0)
+		if err != nil {
+			return nil, err
+		}
+		copy(out, dec)
+		return dec, nil
+	}
+
 	_, decompressed, err := fs.zlib.Decompress(buf, out)
 	if err != nil {
 		_ = fs.zlib.Reset()
