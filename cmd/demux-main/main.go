@@ -18,6 +18,7 @@ import (
 func main() {
 	inPath := flag.String("in", "", "input MAIN.bin file path")
 	outPath := flag.String("out", "", "output folder for partitions. Defaults to -in base directory")
+	splitChar := flag.Int("out", 0x0a, "split character. 0x0a for newline, 0x20 for space")
 	flag.Parse()
 
 	if *outPath == "" {
@@ -37,11 +38,11 @@ func main() {
 	if i == -1 {
 		panic("invalid header offset found")
 	}
-	cmdline := strings.Split(string(buf[:i]), "\x0a")
+	cmdline := bytes.Split(buf[:i], []byte{uint8(*splitChar)})
 
 	kv := make(map[string]string)
-	for _, arg := range cmdline {
-		arg = strings.TrimSpace(arg)
+	for _, bb := range cmdline {
+		arg := strings.TrimSpace(string(bb))
 		vals := strings.SplitN(arg, "=", 2)
 		if vals[0] == "" {
 			continue

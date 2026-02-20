@@ -142,6 +142,10 @@ func main() {
 		panic(err)
 	}
 
+	if *outPath == "" {
+		*outPath = *inPath + ".tar"
+	}
+
 	fs, err := cramfs.NewCramFS(buf)
 	if err != nil {
 		panic(err)
