@@ -54,6 +54,7 @@ func main() {
 	}
 	const n = 16
 	var partitions []int64
+	var names []int
 
 	for partition := range n {
 		if v, ok := kv[fmt.Sprintf("fma%d", partition)]; ok {
@@ -64,12 +65,14 @@ func main() {
 					continue
 				}
 				partitions = append(partitions, vv*1024)
+				names = append(names, partition)
 			} else if strings.HasSuffix(parts[0], "M") {
 				vv, err := strconv.ParseInt(strings.TrimSuffix(parts[0], "M"), 10, 64)
 				if err != nil {
 					continue
 				}
 				partitions = append(partitions, vv*1024*1024)
+				names = append(names, partition)
 			}
 		}
 	}
@@ -102,7 +105,7 @@ func main() {
 
 		nextSize := size + partitions[part]
 		content := buf[size:min(int64(len(buf)), nextSize)]
-		fmt.Printf("partition %02d, offset 0x%08x, size 0x%08x\n", part, size, partitions[part])
+		fmt.Printf("partition %02d, offset 0x%08x, size 0x%08x\n", names[part], size, partitions[part])
 		ext := "img"
 		if fs, err := cramfs.NewCramFS(content); err == nil {
 			ext = "cramfs"
@@ -114,7 +117,7 @@ func main() {
 			fmt.Printf(" fs=ROMFS size=%d name=%s\n", binary.LittleEndian.Uint32(content[8:]), utils.CString(content[16:32]))
 		}
 
-		_ = os.WriteFile(path.Join(*outPath, fmt.Sprintf("fma%d.%s", part, ext)), buf[size:min(int64(len(buf)), nextSize)], 0644)
+		_ = os.WriteFile(path.Join(*outPath, fmt.Sprintf("fma%d.%s", names[part], ext)), buf[size:min(int64(len(buf)), nextSize)], 0644)
 		size = nextSize
 		part++
 	}
