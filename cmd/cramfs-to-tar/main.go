@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils/cramfs"
@@ -73,7 +74,11 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 
 		linkName := i.Link
 		if noAbsolute && strings.HasPrefix(linkName, "/") {
-			linkName = linkName[1:]
+			linkName, err = filepath.Rel(filepath.Dir(i.Name), linkName)
+			if err != nil {
+				fmt.Printf("error reading relative link %s: %s\n", i.Name, err)
+				return
+			}
 		}
 
 		err = ar.WriteHeader(&tar.Header{

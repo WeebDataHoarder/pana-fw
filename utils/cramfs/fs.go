@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"path"
+	"strings"
 
 	"github.com/rasky/go-lzo"
 )
@@ -344,7 +345,11 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 				if err != nil {
 					return err
 				}
-				e.Link = dst
+				if strings.HasPrefix(dst, "/") {
+					e.Link = path.Join(p, dst)
+				} else {
+					e.Link = dst
+				}
 			}
 			return nil
 		}()
