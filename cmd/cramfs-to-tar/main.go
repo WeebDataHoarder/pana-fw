@@ -5,12 +5,20 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils/cramfs"
 )
 
-func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err error) {
+func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i *cramfs.InodeEntry) (err error) {
 	fmt.Printf("handling %s\n", i.Name)
+
+	pathName := i.Name
+
+	if noAbsolute && strings.HasPrefix(pathName, "/") {
+		pathName = pathName[1:]
+	}
+
 	if i.Inode.IsFile() {
 		if i.Error != nil {
 			fmt.Printf("error reading file %s: %s\n", i.Name, i.Error)
@@ -22,7 +30,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err err
 		}
 		err = ar.WriteHeader(&tar.Header{
 			Typeflag: tar.TypeReg,
-			Name:     i.Name,
+			Name:     pathName,
 			Size:     int64(len(buf)),
 			Mode:     int64(i.Inode.FileMode()),
 			Uid:      int(i.Inode.UserID),
@@ -42,7 +50,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err err
 		}
 		err = ar.WriteHeader(&tar.Header{
 			Typeflag: tar.TypeDir,
-			Name:     i.Name,
+			Name:     pathName,
 			Mode:     int64(i.Inode.FileMode()),
 			Uid:      int(i.Inode.UserID),
 			Gid:      int(i.Inode.GroupID),
@@ -52,7 +60,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err err
 		}
 
 		for _, c := range i.Children {
-			err = iterateFS(ar, fs, &c)
+			err = iterateFS(ar, fs, noAbsolute, noSpecial, &c)
 			if err != nil {
 				return err
 			}
@@ -63,10 +71,15 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err err
 			return
 		}
 
+		linkName := i.Link
+		if noAbsolute && strings.HasPrefix(linkName, "/") {
+			linkName = linkName[1:]
+		}
+
 		err = ar.WriteHeader(&tar.Header{
 			Typeflag: tar.TypeSymlink,
-			Name:     i.Name,
-			Linkname: i.Link,
+			Name:     pathName,
+			Linkname: linkName,
 			Mode:     int64(i.Inode.FileMode()),
 			Uid:      int(i.Inode.UserID),
 			Gid:      int(i.Inode.GroupID),
@@ -74,60 +87,62 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, i *cramfs.InodeEntry) (err err
 		if err != nil {
 			return err
 		}
-	} else if i.Inode.IsCharacterDevice() {
-		if i.Error != nil {
-			fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
-			return
-		}
+	} else if i.Inode.IsDevice() && !noSpecial {
+		if i.Inode.IsCharacterDevice() {
+			if i.Error != nil {
+				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
+				return
+			}
 
-		err = ar.WriteHeader(&tar.Header{
-			Typeflag: tar.TypeBlock,
-			Name:     i.Name,
-			Mode:     int64(i.Inode.FileMode()),
-			Uid:      int(i.Inode.UserID),
-			Gid:      int(i.Inode.GroupID),
-			Devmajor: int64((i.Inode.Size >> 8) & 0xFF),
-			Devminor: int64(i.Inode.Size & 0xFF),
-		})
-		if err != nil {
-			return err
-		}
-	} else if i.Inode.IsBlockDevice() {
-		if i.Error != nil {
-			fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
-			return
-		}
+			err = ar.WriteHeader(&tar.Header{
+				Typeflag: tar.TypeChar,
+				Name:     pathName,
+				Mode:     int64(i.Inode.FileMode()),
+				Uid:      int(i.Inode.UserID),
+				Gid:      int(i.Inode.GroupID),
+				Devmajor: int64((i.Inode.Size >> 8) & 0xFF),
+				Devminor: int64(i.Inode.Size & 0xFF),
+			})
+			if err != nil {
+				return err
+			}
+		} else if i.Inode.IsBlockDevice() {
+			if i.Error != nil {
+				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
+				return
+			}
 
-		err = ar.WriteHeader(&tar.Header{
-			Typeflag: tar.TypeBlock,
-			Name:     i.Name,
-			Mode:     int64(i.Inode.FileMode()),
-			Uid:      int(i.Inode.UserID),
-			Gid:      int(i.Inode.GroupID),
-			Devmajor: int64((i.Inode.Size >> 8) & 0xFF),
-			Devminor: int64(i.Inode.Size & 0xFF),
-		})
-		if err != nil {
-			return err
-		}
-	} else if i.Inode.IsFIFO() {
-		if i.Error != nil {
-			fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
-			return
-		}
+			err = ar.WriteHeader(&tar.Header{
+				Typeflag: tar.TypeBlock,
+				Name:     pathName,
+				Mode:     int64(i.Inode.FileMode()),
+				Uid:      int(i.Inode.UserID),
+				Gid:      int(i.Inode.GroupID),
+				Devmajor: int64((i.Inode.Size >> 8) & 0xFF),
+				Devminor: int64(i.Inode.Size & 0xFF),
+			})
+			if err != nil {
+				return err
+			}
+		} else if i.Inode.IsFIFO() {
+			if i.Error != nil {
+				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
+				return
+			}
 
-		err = ar.WriteHeader(&tar.Header{
-			Typeflag: tar.TypeFifo,
-			Name:     i.Name,
-			Mode:     int64(i.Inode.FileMode()),
-			Uid:      int(i.Inode.UserID),
-			Gid:      int(i.Inode.GroupID),
-		})
-		if err != nil {
-			return err
+			err = ar.WriteHeader(&tar.Header{
+				Typeflag: tar.TypeFifo,
+				Name:     pathName,
+				Mode:     int64(i.Inode.FileMode()),
+				Uid:      int(i.Inode.UserID),
+				Gid:      int(i.Inode.GroupID),
+			})
+			if err != nil {
+				return err
+			}
+		} else if i.Inode.IsSocket() {
+			fmt.Printf("error reading socket %s: cannot write on Tar\n", i.Name)
 		}
-	} else if i.Inode.IsSocket() {
-		fmt.Printf("error reading socket %s: cannot write on Tar\n", i.Name)
 	}
 	return nil
 }
@@ -136,6 +151,8 @@ func main() {
 	inPath := flag.String("in", "", "input cramfs file path")
 	outPath := flag.String("out", "", "output tar path")
 	useLZO := flag.Bool("lzo", false, "use LZO decompressor")
+	noSpecial := flag.Bool("no-special", false, "disable special devices")
+	noAbsolute := flag.Bool("no-absolute", false, "disable absolute paths")
 	flag.Parse()
 
 	buf, err := os.ReadFile(*inPath)
@@ -170,7 +187,7 @@ func main() {
 		panic(err)
 	}
 
-	err = iterateFS(ar, fs, &out)
+	err = iterateFS(ar, fs, *noAbsolute, *noSpecial, &out)
 	if err != nil {
 		panic(err)
 	}
