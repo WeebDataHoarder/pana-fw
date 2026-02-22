@@ -18,7 +18,7 @@ import (
 func main() {
 	inPath := flag.String("in", "", "input MAIN.bin file path")
 	outPath := flag.String("out", "", "output folder for partitions. Defaults to -in base directory")
-	splitChar := flag.Int("out", 0x0a, "split character. 0x0a for newline, 0x20 for space")
+	splitChar := flag.Int("split", 0x0a, "split character. 0x0a for newline, 0x20 for space")
 	flag.Parse()
 
 	if *outPath == "" {
