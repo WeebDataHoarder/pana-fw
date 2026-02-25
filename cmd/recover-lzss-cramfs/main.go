@@ -17,8 +17,8 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils/cramfs"
-	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils/lzss"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/lzss"
 	"github.com/4kills/go-zlib/native"
 )
 

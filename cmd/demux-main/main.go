@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils"
-	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils/cramfs"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
 )
 
 func main() {

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils/cramfs"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
 )
 
 func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i *cramfs.InodeEntry) (err error) {

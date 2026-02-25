@@ -1,4 +1,4 @@
-module git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw
+module git.gammaspectra.live/WeebDataHoarder/pana-fw
 
 go 1.26
 

@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 
-	"git.gammaspectra.live/WeebDataHoarder/xyz2yuv/pana-fw/utils"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 )
 
 const CRAMFS_MAGIC = 0x28cd3d45
