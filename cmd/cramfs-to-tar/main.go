@@ -12,8 +12,6 @@ import (
 )
 
 func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i *cramfs.InodeEntry) (err error) {
-	fmt.Printf("handling %s\n", i.Name)
-
 	pathName := i.Name
 
 	if noAbsolute && strings.HasPrefix(pathName, "/") {
@@ -21,6 +19,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 	}
 
 	if i.Inode.IsFile() {
+		fmt.Printf("f %s %04o\n", i.Name, i.Inode.FileMode())
 		if i.Error != nil {
 			fmt.Printf("error reading file %s: %s\n", i.Name, i.Error)
 			return nil
@@ -45,6 +44,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 			return err
 		}
 	} else if i.Inode.IsDir() {
+		fmt.Printf("d %s %04o\n", i.Name, i.Inode.FileMode())
 		if i.Error != nil {
 			fmt.Printf("error reading directory %s: %s\n", i.Name, i.Error)
 			return
@@ -67,6 +67,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 			}
 		}
 	} else if i.Inode.IsLink() {
+		fmt.Printf("l %s -> %s %04o\n", i.Name, i.Link, i.Inode.FileMode())
 		if i.Error != nil {
 			fmt.Printf("error reading link %s: %s\n", i.Name, i.Error)
 			return
@@ -94,6 +95,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 		}
 	} else if i.Inode.IsDevice() && !noSpecial {
 		if i.Inode.IsCharacterDevice() {
+			fmt.Printf("cdev %s %02x:%02x %04o\n", i.Name, int64((i.Inode.Size>>8)&0xFF), int64(i.Inode.Size&0xFF), i.Inode.FileMode())
 			if i.Error != nil {
 				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
 				return
@@ -112,6 +114,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 				return err
 			}
 		} else if i.Inode.IsBlockDevice() {
+			fmt.Printf("bdev %s %02x:%02x %04o\n", i.Name, int64((i.Inode.Size>>8)&0xFF), int64(i.Inode.Size&0xFF), i.Inode.FileMode())
 			if i.Error != nil {
 				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
 				return
@@ -130,6 +133,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 				return err
 			}
 		} else if i.Inode.IsFIFO() {
+			fmt.Printf("fifo %s %04o\n", i.Name, i.Inode.FileMode())
 			if i.Error != nil {
 				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
 				return
