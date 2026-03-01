@@ -59,6 +59,28 @@ func main() {
 				fmt.Printf("main version %d -> %d\n", ver, ver+10)
 				ver += 10
 				mod.Header.Version = [4]byte([]byte(strconv.Itoa(ver)))
+
+				var ml firmware.MainList
+				if err = ml.FromReader(bytes.NewReader(mod.Data), key); err != nil {
+					panic(err)
+				}
+
+				for i, s := range ml.Segments {
+					fmt.Printf("entry %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Header.DestinationSize, s.Header.DestinationAddress, s.Header.SourceSize, s.Header.SourceAddress)
+					if s.Child != nil {
+						fmt.Printf("child %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Child.Header.DestinationSize, s.Child.Header.DestinationAddress, s.Child.Header.SourceSize, s.Child.Header.SourceAddress)
+					}
+				}
+
+				newMl, err := firmware.NewMainListGZIP(ml.Data, key)
+				if err != nil {
+					panic(err)
+				}
+				mlData, err := newMl.ToBuffer(key)
+				if err != nil {
+					panic(err)
+				}
+				mod.Data = mlData
 			}
 		}
 
@@ -70,7 +92,18 @@ func main() {
 		panic(err)
 	}
 	defer out.Close()
-	if err = out.Truncate(int64(len(buf))); err != nil {
+
+	const alignSize = 0x1000
+
+	offset := utils.Align(uint32(firmware.FileHeaderSize), alignSize)
+	for _, mod := range moduleEntries {
+		if mod == nil {
+			continue
+		}
+		mod.Header.Offset = offset
+		offset = utils.Align(offset+uint32(len(mod.Data)), alignSize)
+	}
+	if err = out.Truncate(int64(offset)); err != nil {
 		panic(err)
 	}
 

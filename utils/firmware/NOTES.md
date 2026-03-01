@@ -38,19 +38,19 @@ Follows several _Main List Entry_ (`entry count -> (List Size - 20) / 8`)
 | _Total_ | `[8]byte` |
 
 ## Compressed File Header
-|        Name         | Type       | Description                                                                                   |
-|:-------------------:|:-----------|:----------------------------------------------------------------------------------------------|
-|        Magic        | `[8]byte`  | Magic bytes `EXTRHEAD`                                                                        |
-|                     | `[4]byte`  | Unknown, seems to be always `DRV `                                                            |
-|  Compression Flag   | `uint16`   | Compressed flag: checks for 1 here, else -> `Error! Not compress`                             |
-|  Compression Type   | `uint16`   | 0: No compression<br/>1: GZIP<br/>2: LZSS                                                     |
-|  Destination Size   | `uint32`   | Decompressed size                                                                             |
-| Destination Address | `uint32`   |                                                                                               |
-|     Source Size     | `uint32`   | Compressed size                                                                               |
-|   Source Address    | `uint32`   |                                                                                               |
-|    Footer Offset    | `uint32`   | Offset to footer magic bytes `EXTRFOOT`, it aligns the data to 8 bytes so it can be encrypted |
-|                     | `[4]byte`  | Purpose unknown                                                                               |
-|         Sum         | `uint32`   | Adler32 of decompressed data calculated every Sum Skip bytes                                  |
-|      Sum Skip       | `uint32`   | The bytes to skip when calculating the checksum                                               |
-|       Padding       | `[16]byte` | Unused padding bytes                                                                          |
-|       _Total_       | `[64]byte` |                                                                                               |
+|         Name          | Type       | Description                                                                                   |
+|:---------------------:|:-----------|:----------------------------------------------------------------------------------------------|
+|         Magic         | `[8]byte`  | Magic bytes `EXTRHEAD`                                                                        |
+|                       | `[4]byte`  | Unknown, seems to be always `DRV `                                                            |
+|   Compression Flag    | `uint16`   | Compressed flag: checks for 1 here, else -> `Error! Not compress`                             |
+| Compression Algorithm | `uint16`   | 0: No compression<br/>1: GZIP<br/>2: LZSS                                                     |
+|   Destination Size    | `uint32`   | Decompressed size                                                                             |
+|  Destination Address  | `uint32`   |                                                                                               |
+|      Source Size      | `uint32`   | Compressed size                                                                               |
+|    Source Address     | `uint32`   |                                                                                               |
+|     Footer Offset     | `uint32`   | Offset to footer magic bytes `EXTRFOOT`, it aligns the data to 8 bytes so it can be encrypted |
+|                       | `[4]byte`  | Purpose unknown                                                                               |
+|          Sum          | `uint32`   | Adler32 of decompressed data calculated every Sum Skip bytes                                  |
+|       Sum Skip        | `uint32`   | The bytes to skip when calculating the checksum                                               |
+|        Padding        | `[16]byte` | Unused padding bytes                                                                          |
+|        _Total_        | `[64]byte` |                                                                                               |
