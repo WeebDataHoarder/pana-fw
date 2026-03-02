@@ -16,33 +16,51 @@ func (t *Window) Find(windowIndex int, buf []byte, exhaustive bool) (offsetIndex
 	offsetIndex = -1
 	length = -1
 
-	var t2 Window
+	maxMatch := len(buf)
+	if maxMatch > MaxCoded-1 {
+		maxMatch = MaxCoded - 1
+	}
 
 	for i := range t {
 		// Applying this offset compresses better in non-exhaustive mode
 		currentOffsetIndex := t.Index(windowIndex + i - 1)
-		if t[currentOffsetIndex] == firstData {
-			t2 = *t
 
-			var data byte
-			lookupIndex2 := t2.SetByte(windowIndex, firstData)
+		if t[currentOffsetIndex] != firstData {
+			continue
+		}
 
-			matchSize := 1
-
-			for j := 1; j < len(buf) && j < (MaxCoded-1); j++ {
-				if lookupIndex2, data = t2.GetSetByte(currentOffsetIndex+j, lookupIndex2); data != buf[j] {
-					break
+		if maxMatch > 1 {
+			next := t[t.Index(currentOffsetIndex+1)]
+			if next != buf[1] {
+				if 1 > length && 1 >= MaxUncoded {
+					offsetIndex = currentOffsetIndex
+					length = 1
 				}
-				matchSize++
+				continue
 			}
+		}
 
-			if matchSize > length && matchSize >= MaxUncoded {
-				offsetIndex = currentOffsetIndex
-				length = matchSize
+		t2 := *t
 
-				if !exhaustive {
-					return
-				}
+		lookupIndex := t2.SetByte(windowIndex, firstData)
+
+		matchSize := 1
+
+		for j := 1; j < maxMatch; j++ {
+			var data byte
+			lookupIndex, data = t2.GetSetByte(currentOffsetIndex+j, lookupIndex)
+			if data != buf[j] {
+				break
+			}
+			matchSize++
+		}
+
+		if matchSize > length && matchSize >= MaxUncoded {
+			offsetIndex = currentOffsetIndex
+			length = matchSize
+
+			if !exhaustive {
+				return
 			}
 		}
 	}
