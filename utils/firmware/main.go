@@ -8,10 +8,14 @@ import (
 	"fmt"
 	"hash/adler32"
 	"io"
+	"math/bits"
+	"sync/atomic"
 	"time"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/crypto"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/lzss"
+	"golang.org/x/sync/errgroup"
 )
 
 type CompressionType uint32
@@ -44,16 +48,24 @@ type MainList struct {
 	Data     []byte
 }
 
-func NewMainListGZIP(data []byte, key [32]byte) (*MainList, error) {
+func NewMainListWithCompression(data []byte, key [32]byte, compressionType CompressionType) (*MainList, error) {
+	if bits.OnesCount32(uint32(compressionType)) != 1 {
+		return nil, errors.New("compression type is not supported")
+	}
+
 	var out MainList
 	out.Header.Unknown1 = 1
 	out.Header.ListSize = 20
 	out.Header.DecompressedPartsSize = MainPartTargetSize
-	out.Header.CompressionType = CompressionTypeGZIP
+	out.Header.CompressionType = compressionType
 	out.Data = data
 
+	var wg errgroup.Group
+	out.Segments = make([]CompressedFile, utils.Align(len(data), MainPartTargetSize)/MainPartTargetSize)
+	out.Entries = make([]MainListEntry, len(out.Segments))
+
 	for offset := 0; offset < len(data); offset += MainPartTargetSize {
-		err := func() error {
+		wg.Go(func() error {
 
 			part := data[offset:min(offset+MainPartTargetSize, len(data))]
 
@@ -65,27 +77,48 @@ func NewMainListGZIP(data []byte, key [32]byte) (*MainList, error) {
 				cksumBuf = append(cksumBuf, part[i])
 			}
 
-			wBuf := bytes.NewBuffer(nil)
-			w, err := gzip.NewWriterLevel(wBuf, gzip.BestCompression)
-			if err != nil {
-				return err
-			}
-			defer w.Close()
-			w.Header.ModTime = time.Now().UTC()
-			w.Header.OS = 3
-			w.Header.Name = fmt.Sprintf("bank.rom.in%d.s", offset/MainPartTargetSize)
+			var compressed []byte
 
-			if _, err = w.Write(part); err != nil {
-				return err
-			}
-			if err = w.Flush(); err != nil {
-				return err
-			}
-			if err = w.Close(); err != nil {
-				return err
-			}
+			switch compressionType {
+			case CompressionTypeGZIP:
+				const gzipPattern = "bank.rom.in%d.s"
+				if err := func() error {
+					wBuf := bytes.NewBuffer(nil)
+					w, err := gzip.NewWriterLevel(wBuf, gzip.BestCompression)
+					if err != nil {
+						return err
+					}
+					defer w.Close()
+					w.Header.ModTime = time.Now().UTC()
+					w.Header.OS = 3
+					w.Header.Name = fmt.Sprintf(gzipPattern, offset/MainPartTargetSize)
 
-			compressed := wBuf.Bytes()
+					if _, err = w.Write(part); err != nil {
+						return err
+					}
+					if err = w.Flush(); err != nil {
+						return err
+					}
+					if err = w.Close(); err != nil {
+						return err
+					}
+
+					compressed = wBuf.Bytes()
+
+					return nil
+				}(); err != nil {
+					return err
+				}
+			case CompressionTypeLZSS:
+				if err := func() (err error) {
+					compressed, err = lzss.Compress(part, false)
+					return err
+				}(); err != nil {
+					return err
+				}
+			default:
+				return errors.New("unknown compression type")
+			}
 
 			padded := len(compressed)
 			if padded%8 != 0 {
@@ -94,14 +127,15 @@ func NewMainListGZIP(data []byte, key [32]byte) (*MainList, error) {
 
 			segment := CompressedFile{
 				Header: CompressedFileHeader{
-					Magic:              [8]byte([]byte(CompressedFileHeaderMagic)),
+					Magic: [8]byte([]byte(CompressedFileHeaderMagic)),
+					// Doesn't seem used
 					Unknown:            [4]byte([]byte("DRV ")),
 					CompressedFlag:     1,
-					CompressionType:    uint16(CompressionTypeGZIP),
+					CompressionType:    uint16(compressionType),
 					DestinationSize:    uint32(len(part)),
 					DestinationAddress: 0,
 					SourceSize:         uint32(len(compressed)),
-					//TODO???
+					//TODO??? both source and destination address are overwritten by flasher before usage
 					SourceAddress: 0,
 					FooterOffset:  64 + uint32(padded),
 					Unknown2:      [4]byte{},
@@ -127,18 +161,20 @@ func NewMainListGZIP(data []byte, key [32]byte) (*MainList, error) {
 				crypto.CustomEncrypt(outBuf[len(outBuf)-MainPartEncryptedSize:], key)
 			}
 
-			out.Entries = append(out.Entries, MainListEntry{
+			out.Entries[offset/MainPartTargetSize] = MainListEntry{
 				Size:     uint32(len(outBuf)),
 				Checksum: adler32.Checksum(outBuf),
-			})
-			out.Segments = append(out.Segments, segment)
-			out.Header.ListSize += 8
+			}
+			out.Segments[offset/MainPartTargetSize] = segment
+			atomic.AddUint32(&out.Header.ListSize, 8)
 
 			return nil
-		}()
-		if err != nil {
-			return nil, err
-		}
+		})
+	}
+
+	err := wg.Wait()
+	if err != nil {
+		return nil, err
 	}
 
 	return &out, nil

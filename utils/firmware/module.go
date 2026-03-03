@@ -1,6 +1,7 @@
 package firmware
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"slices"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/crypto"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 )
 
 var ModuleNameMAIN = [4]byte([]byte("MAIN"))
@@ -34,6 +36,133 @@ var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("VGD ")),
 	[4]byte([]byte("HDD1")),
 	[4]byte([]byte("HDD2")),
+}
+
+var PanasonicHeader = [12]byte([]byte("PANASONIC\x00\x00\x00"))
+
+func findKey(block [8]byte, pattern []byte) (key [8]byte, ok bool) {
+	for _, k := range crypto.CustomKeys {
+		testBuf := block
+		expanded := crypto.CustomKeySchedule(k)
+		crypto.CustomDecrypt(testBuf[:], expanded)
+		if bytes.Equal(testBuf[:len(pattern)], pattern) {
+			return k, true
+		}
+	}
+	return [8]byte{}, false
+}
+
+type ModuleEntries struct {
+	Header          []byte
+	Entries         []*Module
+	Offset          int
+	HeaderEncrypted bool
+	BaseKey         [8]byte
+	DerivedKey      [32]byte
+}
+
+func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
+	if len(buf) < FileHeaderSize {
+		return errors.New("FRM file too short")
+	}
+
+	m.HeaderEncrypted = true
+
+	m.Offset = 0
+
+	if bytes.HasPrefix(buf, PanasonicHeader[:]) {
+		sum := adler32.Checksum(buf[:44])
+		if sum == binary.LittleEndian.Uint32(buf[44:]) {
+			m.HeaderEncrypted = buf[43] == 1
+		}
+
+		m.Offset = 48
+	}
+
+	if m.HeaderEncrypted {
+		block := [8]byte(buf[m.Offset : m.Offset+8])
+		var ok bool
+		if m.BaseKey, ok = findKey(block, []byte("PROG0.00")); ok {
+
+		} else if m.BaseKey, ok = findKey(block, []byte("PROG")); ok {
+
+		} else {
+			return errors.New("encryption key not found")
+		}
+	} else {
+		//TODO
+		return errors.New("encryption key not found: unencrypted header")
+	}
+
+	//TODO: AES files with also multiple firmware files
+
+	m.DerivedKey = crypto.CustomKeySchedule(m.BaseKey)
+
+	if m.HeaderEncrypted {
+		crypto.CustomDecrypt(buf[m.Offset:FileHeaderSize], m.DerivedKey)
+	}
+
+	m.Header = buf[:FileHeaderSize]
+
+	r := bytes.NewReader(buf)
+
+	for {
+		var mod Module
+		if err := mod.FromReader(r, m.DerivedKey); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			m.Entries = append(m.Entries, nil)
+			if slices.Contains(KnownModuleHeaderNames, mod.Header.Name) && mod.Header.OEM == OEMPanasonic {
+				//TODO: handle false positives?
+				return err
+			}
+			continue
+		}
+		m.Entries = append(m.Entries, &mod)
+	}
+	return nil
+}
+
+func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
+	m.DerivedKey = crypto.CustomKeySchedule(m.BaseKey)
+
+	const alignSize = 0x1000
+
+	offset := utils.Align(uint32(FileHeaderSize), alignSize)
+	for _, mod := range m.Entries {
+		if mod == nil {
+			continue
+		}
+		mod.Header.Size = uint32(len(mod.Data))
+		mod.Header.Offset = offset
+		offset = utils.Align(offset+mod.Header.Size, alignSize)
+	}
+
+	w := utils.NewWriteSeeker()
+	if err = w.Truncate(int64(offset)); err != nil {
+		return nil, err
+	}
+
+	for i, mod := range m.Entries {
+		if mod == nil {
+			if _, err = w.Write(m.Header[i*48 : i*48+48]); err != nil {
+				return nil, err
+			}
+		} else {
+			if err = mod.ToWriter(w, m.DerivedKey); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	buf = w.Bytes()
+
+	if m.HeaderEncrypted {
+		crypto.CustomEncrypt(buf[m.Offset:FileHeaderSize], m.DerivedKey)
+	}
+
+	return buf, nil
 }
 
 type Module struct {
