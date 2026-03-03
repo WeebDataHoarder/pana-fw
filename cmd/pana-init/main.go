@@ -38,7 +38,9 @@ const defaultPassword = "panasonic"
 
 const deterministicSeed = "panasonic"
 
-const shell = "/usr/bin/bash"
+const shell = "/mnt/usb/local/bin/bash"
+
+const path_prepend = "/mnt/usb/local/bin"
 
 type DeterministicRandom struct {
 	state [32]byte
@@ -59,6 +61,9 @@ func (r *DeterministicRandom) Read(p []byte) (n int, err error) {
 }
 
 func main() {
+	str := os.Getenv("PATH")
+	_ = os.Setenv("PATH", path_prepend+":"+str)
+
 	_, privKey, err := ed25519.GenerateKey(NewDeterministicRandom())
 	if err != nil {
 		panic(err)
