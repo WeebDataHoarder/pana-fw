@@ -51,6 +51,8 @@ func NewCramFS(buf []byte) (*CramFS, error) {
 		return nil, errors.New("root is not a directory")
 	}
 
+	//TODO: check full CRC
+
 	if (fs.Super.Flags & CRAMFS_FLAG_FSID_VERSION_2) == 0 {
 		//TODO: maybe clean rest?
 		fs.Super.FSID.Blocks = 0

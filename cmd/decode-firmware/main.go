@@ -115,9 +115,9 @@ func main() {
 			if *patchRomFS != "" {
 				// sanity: check that a RomFS exists at that offset already
 				{
-					var fs romfs.ROMFS
+					var fs romfs.RomFS
 					if err = fs.Decode(data[*romfsOffset : *romfsOffset+*romfsSize]); err != nil {
-						panic("failed to decode ROMFS at original offset for patching")
+						panic("failed to decode RomFS at original offset for patching")
 					}
 				}
 
@@ -127,9 +127,9 @@ func main() {
 				}
 				// sanity: check that a RomFS exists at new patch data
 				{
-					var fs romfs.ROMFS
+					var fs romfs.RomFS
 					if err = fs.Decode(patchData); err != nil {
-						panic("failed to decode ROMFS at patch data")
+						panic("failed to decode RomFS at patch data")
 					}
 				}
 

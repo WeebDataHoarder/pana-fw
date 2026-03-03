@@ -12,7 +12,7 @@ import (
 
 const MAGIC = "-rom1fs-"
 
-type ROMFS struct {
+type RomFS struct {
 	Magic       [8]byte
 	Size        uint32
 	SumFirst512 uint32
@@ -28,7 +28,16 @@ func sum(data []byte) (result uint32) {
 	return -result
 }
 
-func (fs *ROMFS) Decode(buf []byte) (err error) {
+func NewRomFS(buf []byte) (*RomFS, error) {
+	var fs RomFS
+	err := fs.Decode(buf)
+	if err != nil {
+		return nil, err
+	}
+	return &fs, nil
+}
+
+func (fs *RomFS) Decode(buf []byte) (err error) {
 	if len(buf) < 1024 {
 		return fmt.Errorf("romfs: too small")
 	}
