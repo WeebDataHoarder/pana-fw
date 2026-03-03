@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 
@@ -66,11 +67,11 @@ func main() {
 
 	_, privKey, err := ed25519.GenerateKey(NewDeterministicRandom())
 	if err != nil {
-		panic(err)
+		log.Fatalf("Could not create key: %v", err)
 	}
 	signer, err := gossh.NewSignerFromKey(privKey)
 	if err != nil {
-		panic(err)
+		log.Fatalf("Could not create signer from key: %v", err)
 	}
 
 	server := ssh.Server{
@@ -120,5 +121,11 @@ func main() {
 			return subtle.ConstantTimeCompare([]byte(password), []byte(defaultPassword)) == 1
 		},
 	}
-	_ = server.ListenAndServe()
+
+	log.Printf("Starting pana-init SSH/SFTP server on %s", server.Addr)
+
+	err = server.ListenAndServe()
+	if err != nil {
+		log.Fatalf("Could not start server: %v", err)
+	}
 }
