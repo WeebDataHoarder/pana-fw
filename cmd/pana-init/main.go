@@ -82,6 +82,11 @@ func main() {
 			"sftp": SftpHandler,
 		},
 		Handler: func(s ssh.Session) {
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Printf("Recovered from panic for session %v: %v\n", s, r)
+				}
+			}()
 			cmd := exec.Command(shell)
 			cmd.Env = os.Environ()
 			ptyReq, winCh, isPty := s.Pty()
