@@ -21,6 +21,59 @@ Usage:
 go run ./cmd/demux-main -in MAIN.bin -out /output/path/
 ```
 
+### cmd/repack-firmware
+
+Decrypts and demuxes an FRM update package, then reassembles it, with optional patching or replacements of parts given.
+
+Does not support AES firmware yet, only legacy ones. 
+
+> **NOTE: Usage of this tool with bad images might stop your player from booting properly.**
+> 
+> As long as bootloader is not overwritten, you can recover and force an update by locating the I2C EEPROM on your board and changing some values there (which may vary from model).
+> 
+> On DMR-BWT660, device 0x54 was fixed by replacing 0x00 with 0x10 at offset 0x1D. This sets the flags to update MAIN. Offsets 0x26-0x27 need to be set to 0x01 and 0x02 to boot from SD card.
+
+Usage:
+
+```
+  -in string
+        input FRM path (output will be -in + .patch)
+  -lzss
+        use LZSS compression instead of GZIP
+        
+  -patch-cramfs0 string
+        path to new CRAMFS #0 to patch into MAIN, known as fma5
+  -cramfs0-partition int
+        CRAMFS #0 partition on MAIN data, for patching. 5 = fma5 (default 5)
+        
+  -patch-romfs string
+        path to new RomFS to patch into MAIN, known as fma6
+  -romfs-partition int
+        RomFS partition on MAIN data, for patching. 7 = fma7 (default 6)
+        
+  -patch-cramfs1 string
+        path to new CRAMFS #1 to patch into MAIN, known as fma7
+  -cramfs1-partition int
+        CRAMFS #1 partition on MAIN data, for patching. 7 = fma7 (default 7)
+        
+  -patch-raw string
+        path to new binary data to patch into MAIN. Useful for kernel patching on fma4
+  -raw-partition int
+        raw partition on MAIN data, for patching. 4 = fma4 (default 4)
+        
+  -patch-force
+        patch force flag on MAIN. Might format all.
+  -patch-version
+        patch version with the given -version-offset, useful for forcefully upgrading
+  -version-offset uint
+        offset to increase MAIN version with, default +10 (default 10)
+```
+
+Example (patching custom RomFS and version)
+```
+go run ./cmd/repack-firmware -in PANA_DVD.FRM -patch-version -patch-romfs fma6.romfs 
+```
+
 ## Other projects
 
 * [theubusu/unixtract](https://github.com/theubusu/unixtract): Extractor for various file formats, including Panasonic TV/DVD/BD firmware.

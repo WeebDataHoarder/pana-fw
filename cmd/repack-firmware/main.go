@@ -35,6 +35,11 @@ func main() {
 
 	flag.Parse()
 
+	if *inPath == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
+
 	var compressionType = firmware.CompressionTypeGZIP
 
 	if *useLZSS {
