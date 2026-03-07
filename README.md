@@ -23,9 +23,9 @@ go run ./cmd/demux-main -in MAIN.bin -out /output/path/
 
 ### cmd/repack-firmware
 
-Decrypts and demuxes an FRM update package, then reassembles it, with optional patching or replacements of parts given.
+Decrypts and demuxes a Panasonic FRM update package, then reassembles it, with optional patching or replacements of parts given.
 
-Does not support AES firmware yet, only legacy ones. 
+Does not support AES firmware yet, only legacy ones. AES support will get added in the future as it's just an extra layer over the legacy format.
 
 > **NOTE: Usage of this tool with bad images might stop your player from booting properly.**
 > 
