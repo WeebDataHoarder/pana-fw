@@ -27,11 +27,15 @@ Decrypts and demuxes a Panasonic FRM update package, then reassembles it, with o
 
 These can be directly flashed on Panasonic compatible devices.
 
-All legacy devices (non-AES) are supported thanks to the [advanced key recovery tooling](#advanced), or can be supported if any is missing. Usually the firmware file name is `PANA_DVD.FRM` or `PANA_ESD.FRM`.
-Any other AES devices would need to have their firmware AES keys dumped from NAND or via a vulnerability.
+
+#### Legacy devices
+**All legacy devices (non-AES) are supported** thanks to the [advanced key recovery tooling](#advanced), or can be supported if any is missing.
+
+Usually the firmware file name is `PANA_DVD.FRM` or `PANA_ESD.FRM`.
+
+#### AES devices
 
 The following AES devices are currently supported (or can be with changes). Usually the firmware file name is `PANAEUSB.FRM`.
-
 
 | Models                                                                                                                                                                                                                                                                                                                                    | Link                                                                                            |                                 Region                                 | Supported | Notes           |
 |:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------:|:---------:|:----------------|
@@ -42,6 +46,11 @@ The following AES devices are currently supported (or can be with changes). Usua
 | DP-UB9000P DP-UB9000P19 DP-UB820P DP-UB420P<br/>DP-UB9000PC DP-UB9000PC1 DP-UB820PC DP-UB420PC<br/>DP-UB9000EG DP-UB9000EG1 DP-UB9000EB DP-UB9000EB1 DP-UB9004EG DP-UB9004EG1 DP-UB820EG DP-UB820EB DP-UB820EF DP-UB824EG DP-UB420EG DP-UB420EB DP-UB424EG<br/>DP-UB9000GN DP-UB9000GN1 DP-UB820GN DP-UB420GN DP-UB9000GH<br/>DP-UB9000GK | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/index.html)       | United States<br/>Canada<br/>Europe/UK<br/>Oceania/Hong Kong<br/>China |    Yes    |                 |
 | 	DP-UB9000                                                                                                                                                                                                                                                                                                                                | [DL](https://av.jpn.support.panasonic.com/support/bd/download/pfw/plr/ub9000.html)              |                                 Japan                                  |    Yes    |                 |
 | 	DMR-UBS70EG DMR-UBC70EG                                                                                                                                                                                                                                                                                                                  | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ubs70_ubc70/index.html) |                     Germany, Austria, Switzerland                      |    Yes    |                 |
+
+Any other AES devices would need to have their firmware AES keys dumped from NAND or via a vulnerability.
+
+
+#### Usage
 
 Usage:
 
