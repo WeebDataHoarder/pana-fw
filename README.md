@@ -25,13 +25,23 @@ go run ./cmd/demux-main -in MAIN.bin -out /output/path/
 
 Decrypts and demuxes a Panasonic FRM update package, then reassembles it, with optional patching or replacements of parts given.
 
-Does not support AES firmware yet, only legacy ones. AES support will get added in the future as it's just an extra layer over the legacy format.
+These can be directly flashed on Panasonic compatible devices.
 
-> **NOTE: Usage of this tool with bad images might stop your player from booting properly.**
-> 
-> As long as bootloader is not overwritten, you can recover and force an update by locating the I2C EEPROM on your board and changing some values there (which may vary from model).
-> 
-> On DMR-BWT660, device 0x54 was fixed by replacing 0x00 with 0x10 at offset 0x1D. This sets the flags to update MAIN. Offsets 0x26-0x27 need to be set to 0x01 and 0x02 to boot from SD card.
+All legacy devices (non-AES) are supported thanks to the [advanced key recovery tooling](#advanced), or can be supported if any is missing. Usually the firmware file name is `PANA_DVD.FRM` or `PANA_ESD.FRM`.
+Any other AES devices would need to have their firmware AES keys dumped from NAND or via a vulnerability.
+
+The following AES devices are currently supported (or can be with changes). Usually the firmware file name is `PANAEUSB.FRM`.
+
+
+| Models                                                                                                                                                                                                                                                                                                                                    | Link                                                                                            |                                 Region                                 | Supported | Notes           |
+|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------:|:---------:|:----------------|
+| DMR-UBX7050 DMR-UX7050 DMR-UBX4050 DMR-UX4050                                                                                                                                                                                                                                                                                             | [DL](https://av.jpn.support.panasonic.com/support/bd/download/hdfw/rdr/ubx7050.html)            |                                 Japan                                  |    No     | Double firmware |
+| DMR-BRG2050 DMR-BG2050                                                                                                                                                                                                                                                                                                                    | [DL](https://av.jpn.support.panasonic.com/support/bd/download/hdfw/rdr/brg2050.html)            |                                 Japan                                  |    Yes    |                 |
+| DP-UB32                                                                                                                                                                                                                                                                                                                                   | [DL](https://av.jpn.support.panasonic.com/support/bd/download/pfw/plr/ub32.html)                |                                 Japan                                  |    Yes    |                 |
+| DP-UB330EG DP-UB320EG DP-UB320EB DP-UB391EB<br/>DP-UB320PU<br/>DP-UB320GN DP-UB320GC<br/>DP-UB320GA DP-UB320GK DP-UB320GT                                                                                                                                                                                                                 | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub320/index.html)       |      Europe/UK<br/>Latin America<br/>Oceania/Middle East<br/>Asia      |    Yes    |                 |
+| DP-UB9000P DP-UB9000P19 DP-UB820P DP-UB420P<br/>DP-UB9000PC DP-UB9000PC1 DP-UB820PC DP-UB420PC<br/>DP-UB9000EG DP-UB9000EG1 DP-UB9000EB DP-UB9000EB1 DP-UB9004EG DP-UB9004EG1 DP-UB820EG DP-UB820EB DP-UB820EF DP-UB824EG DP-UB420EG DP-UB420EB DP-UB424EG<br/>DP-UB9000GN DP-UB9000GN1 DP-UB820GN DP-UB420GN DP-UB9000GH<br/>DP-UB9000GK | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/index.html)       | United States<br/>Canada<br/>Europe/UK<br/>Oceania/Hong Kong<br/>China |    Yes    |                 |
+| 	DP-UB9000                                                                                                                                                                                                                                                                                                                                | [DL](https://av.jpn.support.panasonic.com/support/bd/download/pfw/plr/ub9000.html)              |                                 Japan                                  |    Yes    |                 |
+| 	DMR-UBS70EG DMR-UBC70EG                                                                                                                                                                                                                                                                                                                  | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ubs70_ubc70/index.html) |                     Germany, Austria, Switzerland                      |    Yes    |                 |
 
 Usage:
 
@@ -73,6 +83,12 @@ Example (patching custom RomFS and version)
 ```
 go run ./cmd/repack-firmware -in PANA_DVD.FRM -patch-version -patch-romfs fma6.romfs 
 ```
+
+> **NOTE: Usage of this tool with bad images might stop your player from booting properly.**
+>
+> As long as bootloader is not overwritten, you can recover and force an update by locating the I2C EEPROM on your board and changing some values there (which may vary from model).
+>
+> On DMR-BWT660, I2C EEPROM device 0x54 was fixed by replacing 0x00 with 0x10 at offset 0x1D. This sets the flags to update MAIN. Offsets 0x26-0x27 need to be set to 0x01 and 0x02 to boot from SD card.
 
 ## Other projects
 

@@ -1,6 +1,11 @@
 package crypto
 
-var CustomKeys = [][8]byte{
+import (
+	"crypto/aes"
+	"crypto/cipher"
+)
+
+var CustomKeys = []CustomKey{
 	//B3A25A0B9D864F08 # 87 firmwares, ..-~2011
 	{0x08, 0xE0, 0x3D, 0x85, 0x9A, 0xF9, 0xF3, 0xEE},
 	//720FCB305F2F6EDA # 3 firmwares, ~2011
@@ -22,25 +27,75 @@ var CustomKeys = [][8]byte{
 	{0x06, 0xC9, 0x43, 0xF3, 0xB9, 0x97, 0xF7, 0xE0},
 }
 
+var AESKeys = []AESKey{
+	// # 8 firmwares, 2018
+	NewAESKey(
+		[16]byte{0x62, 0xA3, 0x9E, 0x1C, 0x55, 0x94, 0xAE, 0x09, 0x24, 0x4E, 0xB3, 0x26, 0xEF, 0x79, 0x38, 0xFA},
+		[16]byte{0x46, 0xD0, 0x3C, 0x52, 0xB1, 0xA3, 0x98, 0xFA, 0x03, 0x27, 0x6F, 0xDE, 0x7C, 0xC4, 0xEA, 0x26},
+		CustomKey{0x06, 0xC9, 0x43, 0xF3, 0xB9, 0x97, 0xF7, 0xE0},
+	),
+}
+
 type AESKey struct {
 	Key [16]byte
 	IV  [16]byte
 	// Custom Key result of two xored inputs
-	Custom [8]byte
+	Custom            CustomKey
+	ExpandedCustomKey ExpandedCustomKey
 }
 
-var AESKeys = []AESKey{
-	// # 8 firmwares, 2018
-	{
-		Key:    [16]byte{0x62, 0xA3, 0x9E, 0x1C, 0x55, 0x94, 0xAE, 0x09, 0x24, 0x4E, 0xB3, 0x26, 0xEF, 0x79, 0x38, 0xFA},
-		IV:     [16]byte{0x46, 0xD0, 0x3C, 0x52, 0xB1, 0xA3, 0x98, 0xFA, 0x03, 0x27, 0x6F, 0xDE, 0x7C, 0xC4, 0xEA, 0x26},
-		Custom: [8]byte{0x06, 0xC9, 0x43, 0xF3, 0xB9, 0x97, 0xF7, 0xE0},
-	},
+func (k AESKey) Encrypt(data []byte) {
+	c, _ := aes.NewCipher(k.Key[:])
+	b := cipher.NewCBCEncrypter(c, k.IV[:])
+	b.CryptBlocks(data, data)
 }
 
-func CustomKeySchedule(xorInput [8]byte) (key [32]byte) {
+func (k AESKey) EncryptCustom(data []byte) {
+	k.ExpandedCustomKey.Encrypt(data)
+	k.Encrypt(data)
+}
+
+func (k AESKey) Decrypt(data []byte) {
+	c, _ := aes.NewCipher(k.Key[:])
+	b := cipher.NewCBCDecrypter(c, k.IV[:])
+	b.CryptBlocks(data, data)
+}
+
+func (k AESKey) DecryptCustom(data []byte) {
+	k.Decrypt(data)
+	k.ExpandedCustomKey.Decrypt(data)
+}
+
+func NewAESKey(key, iv [16]byte, custom CustomKey) AESKey {
+	return AESKey{
+		Key:               key,
+		IV:                iv,
+		Custom:            custom,
+		ExpandedCustomKey: custom.Expand(),
+	}
+}
+
+// CustomKey The result of two 8x8 byte keys, XOR'd together in a special way
+// Each key is then reduced to 56 bit security on key expansion
+type CustomKey [8]byte
+
+func (k CustomKey) Expand() ExpandedCustomKey {
+	return CustomKeySchedule(k)
+}
+
+type ExpandedCustomKey [32]byte
+
+func (k ExpandedCustomKey) Encrypt(data []byte) {
+	CustomEncrypt(data, k)
+}
+func (k ExpandedCustomKey) Decrypt(data []byte) {
+	CustomDecrypt(data, k)
+}
+
+func CustomKeySchedule(xorInput CustomKey) (key [32]byte) {
 	k := xorInput
 	k[7] = 0
+	// 56-bit reduction
 	k[1] ^= xorInput[7]
 	k[4] ^= xorInput[7]
 

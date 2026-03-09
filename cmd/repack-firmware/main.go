@@ -21,6 +21,7 @@ func main() {
 	increaseVersion := flag.Uint("version-offset", 10, "offset to increase MAIN version with, default +10")
 	patchVersion := flag.Bool("patch-version", false, "patch version with the given -version-offset, useful for forcefully upgrading")
 	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Might format all.")
+	repackForce := flag.Bool("repack-force", false, "force a repack and compression even if nothing was patched")
 
 	patchRaw := flag.String("patch-raw", "", "path to new binary data to patch into MAIN. Useful for kernel patching on fma4")
 	rawPartition := flag.Int("raw-partition", 4, "raw partition on MAIN data, for patching. 4 = fma4")
@@ -52,6 +53,12 @@ func main() {
 		panic(err)
 	}
 
+	if fw.AESKey != nil {
+		fmt.Printf("Using AES+Custom key = %x, iv = %x, custom = %x\n", fw.AESKey.Key, fw.AESKey.IV, fw.AESKey.Custom)
+	} else {
+		fmt.Printf("Using Custom key = %x\n", fw.CustomKey)
+	}
+
 	for _, mod := range fw.Entries {
 		if mod == nil {
 			continue
@@ -79,7 +86,7 @@ func main() {
 			}
 
 			var ml firmware.MainList
-			if err = ml.FromReader(bytes.NewReader(mod.Data), fw.DerivedKey); err != nil {
+			if err = ml.FromReader(bytes.NewReader(mod.Data), fw.ExpandedKey); err != nil {
 				panic(err)
 			}
 
@@ -92,25 +99,23 @@ func main() {
 
 			var compressionType firmware.CompressionType
 
-			if *compression != "" {
-				switch strings.ToLower(*compression) {
-				case "gzip":
-					compressionType = firmware.CompressionTypeGZIP
-				case "lzss":
+			switch strings.ToLower(*compression) {
+			case "gzip":
+				compressionType = firmware.CompressionTypeGZIP
+			case "lzss":
+				compressionType = firmware.CompressionTypeLZSS
+			default:
+				if ml.Header.CompressionType == firmware.CompressionTypeLZSS || ml.Header.CompressionType == firmware.CompressionTypeNone {
+					// default to LZSS if gzip is not used
 					compressionType = firmware.CompressionTypeLZSS
-				default:
-					if ml.Header.CompressionType == firmware.CompressionTypeLZSS || ml.Header.CompressionType == firmware.CompressionTypeNone {
-						// default to LZSS or none if gzip is not used
-						compressionType = ml.Header.CompressionType
-					} else {
-						// no need to use recursive GZIP+LZSS
-						compressionType = firmware.CompressionTypeGZIP
-					}
+				} else {
+					// no need to use recursive GZIP+LZSS
+					compressionType = firmware.CompressionTypeGZIP
 				}
 			}
 
 			data := slices.Clone(ml.Data)
-			var patched bool
+			patched := *repackForce
 
 			parts, err := firmware.SplitPartitions(data, firmware.MainPartitionSplitCharacter)
 
@@ -254,11 +259,11 @@ func main() {
 			}
 
 			if patched {
-				newMl, err := firmware.NewMainListWithCompression(data, fw.DerivedKey, compressionType)
+				newMl, err := firmware.NewMainListWithCompression(data, fw.ExpandedKey, compressionType)
 				if err != nil {
 					panic(err)
 				}
-				mlData, err := newMl.ToBuffer(fw.DerivedKey)
+				mlData, err := newMl.ToBuffer(fw.ExpandedKey)
 				if err != nil {
 					panic(err)
 				}

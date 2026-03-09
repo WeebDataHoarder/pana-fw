@@ -48,7 +48,7 @@ type MainList struct {
 	Data     []byte
 }
 
-func NewMainListWithCompression(data []byte, key [32]byte, compressionType CompressionType) (*MainList, error) {
+func NewMainListWithCompression(data []byte, key *crypto.ExpandedCustomKey, compressionType CompressionType) (*MainList, error) {
 	if bits.OnesCount32(uint32(compressionType)) != 1 {
 		return nil, errors.New("compression type is not supported")
 	}
@@ -155,10 +155,10 @@ func NewMainListWithCompression(data []byte, key [32]byte, compressionType Compr
 
 			if len(outBuf) < MainPartEncryptedSize {
 				return errors.New("encrypted block too small")
-			} else {
+			} else if key != nil {
 				//yep, this can overlap
-				crypto.CustomEncrypt(outBuf[:MainPartEncryptedSize], key)
-				crypto.CustomEncrypt(outBuf[len(outBuf)-MainPartEncryptedSize:], key)
+				key.Encrypt(outBuf[len(outBuf)-MainPartEncryptedSize:])
+				key.Encrypt(outBuf[:MainPartEncryptedSize])
 			}
 
 			out.Entries[offset/MainPartTargetSize] = MainListEntry{
@@ -183,7 +183,7 @@ func NewMainListWithCompression(data []byte, key [32]byte, compressionType Compr
 const MainPartEncryptedSize = 0x1400
 const MainPartTargetSize = 16 * 1024 * 1024
 
-func (l *MainList) ToBuffer(key [32]byte) (buf []byte, err error) {
+func (l *MainList) ToBuffer(key *crypto.ExpandedCustomKey) (buf []byte, err error) {
 	hdrBuf := make([]byte, l.Header.ListSize)
 
 	if _, err = binary.Encode(hdrBuf[:20], binary.LittleEndian, l.Header); err != nil {
@@ -207,10 +207,10 @@ func (l *MainList) ToBuffer(key [32]byte) (buf []byte, err error) {
 
 		if len(part) < MainPartEncryptedSize {
 			return nil, errors.New("encrypted block too small")
-		} else {
+		} else if key != nil {
 			//yep, this can overlap
-			crypto.CustomEncrypt(part[:MainPartEncryptedSize], key)
-			crypto.CustomEncrypt(part[len(part)-MainPartEncryptedSize:], key)
+			key.Encrypt(part[len(part)-MainPartEncryptedSize:])
+			key.Encrypt(part[:MainPartEncryptedSize])
 		}
 		buf = append(buf, part...)
 	}
@@ -218,7 +218,7 @@ func (l *MainList) ToBuffer(key [32]byte) (buf []byte, err error) {
 	return buf, nil
 }
 
-func (l *MainList) FromReader(r io.ReadSeeker, key [32]byte) (err error) {
+func (l *MainList) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (err error) {
 	if err = binary.Read(r, binary.LittleEndian, &l.Header); err != nil {
 		return err
 	}
@@ -260,10 +260,10 @@ func (l *MainList) FromReader(r io.ReadSeeker, key [32]byte) (err error) {
 
 		if len(buf) < MainPartEncryptedSize {
 			return errors.New("encrypted block too small")
-		} else {
+		} else if key != nil {
 			//yep, this can overlap
-			crypto.CustomDecrypt(buf[:MainPartEncryptedSize], key)
-			crypto.CustomDecrypt(buf[len(buf)-MainPartEncryptedSize:], key)
+			key.Decrypt(buf[:MainPartEncryptedSize])
+			key.Decrypt(buf[len(buf)-MainPartEncryptedSize:])
 		}
 
 		var f CompressedFile

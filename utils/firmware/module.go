@@ -40,16 +40,27 @@ var KnownModuleHeaderNames = [][4]byte{
 
 var PanasonicHeader = [12]byte([]byte("PANASONIC\x00\x00\x00"))
 
-func findKey(block [8]byte, pattern []byte) (key [8]byte, ok bool) {
+func findKey(block [8]byte, pattern []byte) (key crypto.CustomKey, ok bool) {
 	for _, k := range crypto.CustomKeys {
 		testBuf := block
-		expanded := crypto.CustomKeySchedule(k)
-		crypto.CustomDecrypt(testBuf[:], expanded)
+		expanded := k.Expand()
+		expanded.Decrypt(testBuf[:])
 		if bytes.Equal(testBuf[:len(pattern)], pattern) {
 			return k, true
 		}
 	}
-	return [8]byte{}, false
+	return crypto.CustomKey{}, false
+}
+
+func findAESKey(block []byte, pattern []byte) (key crypto.AESKey, ok bool) {
+	for _, k := range crypto.AESKeys {
+		testBuf := bytes.Clone(block)
+		k.DecryptCustom(testBuf)
+		if bytes.Equal(testBuf[32:32+len(pattern)], pattern) {
+			return k, true
+		}
+	}
+	return crypto.AESKey{}, false
 }
 
 type ModuleEntries struct {
@@ -57,8 +68,20 @@ type ModuleEntries struct {
 	Entries         []*Module
 	Offset          int
 	HeaderEncrypted bool
-	BaseKey         [8]byte
-	DerivedKey      [32]byte
+	AESKey          *crypto.AESKey
+	CustomKey       crypto.CustomKey
+	ExpandedKey     *crypto.ExpandedCustomKey
+}
+
+type AESHeader struct {
+	Entries [4]AESHeaderFileEntry
+	Magic   [12]byte
+	Sum     uint32
+}
+
+type AESHeaderFileEntry struct {
+	Offset uint32
+	Size   uint32
 }
 
 func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
@@ -66,8 +89,52 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 		return errors.New("FRM file too short")
 	}
 
-	m.HeaderEncrypted = true
+	// AES-class firmware
+	if aesKey, ok := findAESKey(buf[:64], PanasonicHeader[:]); ok {
 
+		m.AESKey = &aesKey
+		m.CustomKey = m.AESKey.Custom
+
+		// decrypt header
+		m.AESKey.DecryptCustom(buf[:48])
+		var header AESHeader
+
+		if _, err = binary.Decode(buf[:48], binary.LittleEndian, &header); err != nil {
+			return err
+		}
+
+		var sections []AESHeaderFileEntry
+
+		for _, e := range header.Entries {
+			if e.Offset != 0 && e.Size != 0 {
+				sections = append(sections, e)
+			}
+			m.AESKey.Decrypt(buf[e.Offset : e.Offset+e.Size])
+		}
+
+		if len(sections) != 1 {
+			return errors.New("AES header with not one entry not supported")
+		}
+
+		e := sections[0]
+
+		if e.Offset != 48 || header.Magic != PanasonicHeader {
+			return errors.New("AES header with non standard offset not supported")
+		}
+
+		sum := adler32.Checksum(buf[:44])
+		if sum != header.Sum {
+			return ErrInvalidHeaderChecksum
+		}
+
+		// advance
+		buf = buf[e.Offset:]
+
+		//TODO: AES files with also multiple firmware files
+
+	}
+
+	m.HeaderEncrypted = true
 	m.Offset = 0
 
 	if bytes.HasPrefix(buf, PanasonicHeader[:]) {
@@ -82,9 +149,9 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 	if m.HeaderEncrypted {
 		block := [8]byte(buf[m.Offset : m.Offset+8])
 		var ok bool
-		if m.BaseKey, ok = findKey(block, []byte("PROG0.00")); ok {
+		if m.CustomKey, ok = findKey(block, []byte("PROG0.00")); ok {
 
-		} else if m.BaseKey, ok = findKey(block, []byte("PROG")); ok {
+		} else if m.CustomKey, ok = findKey(block, []byte("PROG")); ok {
 
 		} else {
 			return errors.New("encryption key not found")
@@ -94,12 +161,10 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 		return errors.New("encryption key not found: unencrypted header")
 	}
 
-	//TODO: AES files with also multiple firmware files
+	m.ExpandedKey = new(m.CustomKey.Expand())
 
-	m.DerivedKey = crypto.CustomKeySchedule(m.BaseKey)
-
-	if m.HeaderEncrypted {
-		crypto.CustomDecrypt(buf[m.Offset:FileHeaderSize], m.DerivedKey)
+	if m.HeaderEncrypted && m.ExpandedKey != nil {
+		m.ExpandedKey.Decrypt(buf[m.Offset:FileHeaderSize])
 	}
 
 	m.Header = buf[:FileHeaderSize]
@@ -108,7 +173,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 
 	for {
 		var mod Module
-		if err := mod.FromReader(r, m.DerivedKey); err != nil {
+		if err := mod.FromReader(r, m.ExpandedKey); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -125,7 +190,6 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 }
 
 func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
-	m.DerivedKey = crypto.CustomKeySchedule(m.BaseKey)
 
 	const alignSize = 0x1000
 
@@ -150,7 +214,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 				return nil, err
 			}
 		} else {
-			if err = mod.ToWriter(w, m.DerivedKey); err != nil {
+			if err = mod.ToWriter(w, m.ExpandedKey); err != nil {
 				return nil, err
 			}
 		}
@@ -159,7 +223,32 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 	buf = w.Bytes()
 
 	if m.HeaderEncrypted {
-		crypto.CustomEncrypt(buf[m.Offset:FileHeaderSize], m.DerivedKey)
+		m.ExpandedKey.Encrypt(buf[m.Offset:FileHeaderSize])
+	}
+
+	if m.AESKey != nil {
+		// encrypt file data
+		m.AESKey.Encrypt(buf)
+
+		header := AESHeader{
+			Entries: [4]AESHeaderFileEntry{
+				{
+					Offset: 48,
+					Size:   uint32(len(buf)),
+				},
+			},
+			Magic: PanasonicHeader,
+			Sum:   0,
+		}
+		hdrBuf, err := binary.Append(nil, binary.LittleEndian, header)
+		if err != nil {
+			return nil, err
+		}
+		// put sum
+		binary.LittleEndian.PutUint32(hdrBuf[44:], adler32.Checksum(hdrBuf[:44]))
+		// encrypt header
+		m.AESKey.EncryptCustom(hdrBuf)
+		buf = append(hdrBuf, buf...)
 	}
 
 	return buf, nil
@@ -179,13 +268,13 @@ var ErrInvalidHeaderChecksum = errors.New("invalid header checksum")
 var ErrInvalidDataChecksum = errors.New("invalid data checksum")
 var ErrNotModule = errors.New("not a module")
 
-func (m *Module) ToWriter(w io.WriteSeeker, key [32]byte) (err error) {
+func (m *Module) ToWriter(w io.WriteSeeker, key *crypto.ExpandedCustomKey) (err error) {
 	m.Header.Size = uint32(len(m.Data))
 
 	m.Header.DataSum = adler32.Checksum(m.Data)
 
-	if m.Header.Name != ModuleNameMAIN {
-		crypto.CustomEncrypt(m.Data[:], key)
+	if m.Header.Name != ModuleNameMAIN && key != nil {
+		key.Encrypt(m.Data)
 	}
 
 	var hdrBuf [48]byte
@@ -223,7 +312,7 @@ func (m *Module) ToWriter(w io.WriteSeeker, key [32]byte) (err error) {
 	return nil
 }
 
-func (m *Module) FromReader(r io.ReadSeeker, key [32]byte) (err error) {
+func (m *Module) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (err error) {
 	var hdrBuf [48]byte
 
 	if _, err = io.ReadFull(r, hdrBuf[:]); err != nil {
@@ -266,8 +355,8 @@ func (m *Module) FromReader(r io.ReadSeeker, key [32]byte) (err error) {
 		return err
 	}
 
-	if m.Header.Name != [4]byte([]byte("MAIN")) {
-		crypto.CustomDecrypt(m.Data[:], key)
+	if m.Header.Name != [4]byte([]byte("MAIN")) && key != nil {
+		key.Decrypt(m.Data)
 	}
 
 	if adler32.Checksum(m.Data) != m.Header.DataSum {

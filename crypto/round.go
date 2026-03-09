@@ -3,7 +3,6 @@ package crypto
 import (
 	"encoding/binary"
 	"math/bits"
-	"slices"
 )
 
 var sbox = [256]byte{
@@ -24,17 +23,6 @@ var sbox = [256]byte{
 	0x5a, 0x83, 0xeb, 0xca, 0x07, 0x04, 0xb4, 0xb6, 0x52, 0xae, 0xd4, 0x33, 0x31, 0x75, 0xd3, 0x6c,
 	0x62, 0xbf, 0x6b, 0xf9, 0xac, 0x46, 0xf0, 0x5c, 0x19, 0x7e, 0x68, 0xb5, 0xf1, 0x74, 0xc6, 0xe9,
 }
-
-var invSbox = func() (out [256]byte) {
-	for i := range out {
-		if ix := slices.Index(sbox[:], uint8(i)); ix != -1 {
-			out[i] = uint8(ix)
-		} else {
-			panic("sbox out of range")
-		}
-	}
-	return out
-}()
 
 var expandedSBOX = func() (out [256][4]byte) {
 	for i := range sbox {
