@@ -38,8 +38,8 @@ Usage:
 ```
   -in string
         input FRM path (output will be -in + .patch)
-  -lzss
-        use LZSS compression instead of GZIP
+  -compression string
+        compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.
         
   -patch-cramfs0 string
         path to new CRAMFS #0 to patch into MAIN, known as fma5

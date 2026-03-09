@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
@@ -16,7 +17,7 @@ import (
 
 func main() {
 	inPath := flag.String("in", "", "input FRM path")
-	useLZSS := flag.Bool("lzss", false, "use LZSS compression instead of GZIP")
+	compression := flag.String("compression", "", "compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.")
 	increaseVersion := flag.Uint("version-offset", 10, "offset to increase MAIN version with, default +10")
 	patchVersion := flag.Bool("patch-version", false, "patch version with the given -version-offset, useful for forcefully upgrading")
 	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Might format all.")
@@ -40,12 +41,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	var compressionType = firmware.CompressionTypeGZIP
-
-	if *useLZSS {
-		compressionType = firmware.CompressionTypeLZSS
-	}
-
 	buf, err := os.ReadFile(*inPath)
 	if err != nil {
 		panic(err)
@@ -67,6 +62,7 @@ func main() {
 	// do changes, patches
 	for _, mod := range fw.Entries {
 		if mod != nil && mod.Header.Name == firmware.ModuleNameMAIN {
+
 			if *patchVersion && *increaseVersion > 0 {
 				ver, err := strconv.Atoi(utils.CString(mod.Header.Version[:]))
 				if err != nil {
@@ -93,6 +89,26 @@ func main() {
 					fmt.Printf("child %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Child.Header.DestinationSize, s.Child.Header.DestinationAddress, s.Child.Header.SourceSize, s.Child.Header.SourceAddress)
 				}
 			}
+
+			var compressionType firmware.CompressionType
+
+			if *compression != "" {
+				switch strings.ToLower(*compression) {
+				case "gzip":
+					compressionType = firmware.CompressionTypeGZIP
+				case "lzss":
+					compressionType = firmware.CompressionTypeLZSS
+				default:
+					if ml.Header.CompressionType == firmware.CompressionTypeLZSS || ml.Header.CompressionType == firmware.CompressionTypeNone {
+						// default to LZSS or none if gzip is not used
+						compressionType = ml.Header.CompressionType
+					} else {
+						// no need to use recursive GZIP+LZSS
+						compressionType = firmware.CompressionTypeGZIP
+					}
+				}
+			}
+
 			data := slices.Clone(ml.Data)
 			var patched bool
 
