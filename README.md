@@ -3,24 +3,6 @@
 
 ## Commands
 
-### cmd/cramfs-to-tar
-
-Decompresses a [CRAMFS](https://docs.kernel.org/filesystems/cramfs.html) and packs the file and directory structure onto a Tar file for further consumption. Supports partially broken files.
-
-Usage:
-```
-go run ./cmd/cramfs-to-tar -in fma6.cramfs -out fma6.tar
-```
-
-### cmd/demux-main
-
-Demuxes a MAIN.bin section file onto its partition segments. Results in several files.
-
-Usage:
-```
-go run ./cmd/demux-main -in MAIN.bin -out /output/path/
-```
-
 ### cmd/repack-firmware
 
 Decrypts and demuxes a Panasonic FRM update package, then reassembles it, with optional patching or replacements of parts given.
@@ -84,6 +66,8 @@ Usage:
         patch force flag on MAIN. Might format all.
   -patch-version
         patch version with the given -version-offset, useful for forcefully upgrading
+  -repack-force
+        force a repack and compression even if nothing was patched
   -version-offset uint
         offset to increase MAIN version with, default +10 (default 10)
 ```
@@ -99,10 +83,31 @@ go run ./cmd/repack-firmware -in PANA_DVD.FRM -patch-version -patch-romfs fma6.r
 >
 > On DMR-BWT660, I2C EEPROM device 0x54 was fixed by replacing 0x00 with 0x10 at offset 0x1D. This sets the flags to update MAIN. Offsets 0x26-0x27 need to be set to 0x01 and 0x02 to boot from SD card.
 
+
+### cmd/cramfs-to-tar
+
+Decompresses a [CRAMFS](https://docs.kernel.org/filesystems/cramfs.html) and packs the file and directory structure onto a Tar file for further consumption. Supports partially broken files.
+
+Usage:
+```
+go run ./cmd/cramfs-to-tar -in fma6.cramfs -out fma6.tar
+```
+
+### cmd/demux-main
+
+Demuxes a MAIN.bin section file onto its partition segments. Results in several files. Use [theubusu/unixtract](https://github.com/theubusu/unixtract) to unpack firmware.
+
+Usage:
+```
+go run ./cmd/demux-main -in MAIN.bin -out /output/path/
+```
+
 ## Other projects
 
 * [theubusu/unixtract](https://github.com/theubusu/unixtract): Extractor for various file formats, including Panasonic TV/DVD/BD firmware.
 * [avforums freedom thread](https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/)
+
+
 
 
 ## Advanced
