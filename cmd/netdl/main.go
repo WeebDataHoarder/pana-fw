@@ -6,8 +6,6 @@ package main
 import (
 	"bytes"
 	"compress/zlib"
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
@@ -26,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/crypto"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 	"github.com/icholy/digest"
 )
@@ -33,44 +32,6 @@ import (
 func memset(dst []byte, val byte, size int) {
 	for i := range dst[:size] {
 		dst[i] = val
-	}
-}
-
-var CryptoKey = [32]byte{
-	0xd4, 0xac, 0x76, 0x2b, 0xe8, 0x60, 0xd0, 0xf3, 0x5f, 0x15, 0xfc, 0x26, 0x6d, 0xd8, 0x91, 0x1c,
-	0xde, 0xff, 0xe6, 0x39, 0x97, 0x75, 0xbb, 0x9e, 0xff, 0x69, 0x3b, 0x89, 0xaa, 0xd4, 0x12, 0x82,
-}
-
-func decipher(src, dst []byte) {
-	v3 := uint32(904)
-	cnt := 0
-
-	len_ := len(src)
-
-	if len_ > 0 {
-		trueLen := min(0x80, len_)
-
-		if trueLen > 0 {
-			i := 0
-			j := 0
-			for i < len(src) {
-				iter := uint32(src[i])
-				i++
-				j = (j + 1) & 0xff
-				v11 := iter + 38400
-				v11 &= 0xFFFFFFFF
-				v12 := iter ^ ((v3 & 0xff00) >> 8)
-				v3 += v11 + 163
-				v3 &= 0xffffffff
-				if j == 0 {
-					v3 = 904
-				}
-				if cnt < len(dst) {
-					dst[cnt] = uint8(v12)
-					cnt++
-				}
-			}
-		}
 	}
 }
 
@@ -106,13 +67,11 @@ func main() {
 	netVerInfo.Version = binary.BigEndian.Uint32(eep(4, 0x207c))
 
 	var netdl struct {
-		ProductId      [33]byte
-		ProductName    [11]byte
-		BrandCode      [17]byte
-		ServerAddress  [65]byte
-		ServerPort     uint16
-		CryptoKeySize  uint32
-		CryptoKeyAndIV [32]byte
+		ProductId     [33]byte
+		ProductName   [11]byte
+		BrandCode     [17]byte
+		ServerAddress [65]byte
+		ServerPort    uint16
 	}
 
 	{
@@ -166,11 +125,6 @@ func main() {
 		}
 	}
 
-	netdl.CryptoKeySize = uint32(len(CryptoKey))
-	decipher(CryptoKey[:], netdl.CryptoKeyAndIV[:])
-
-	fmt.Printf("netdl:CryptoKey key=%x iv=%x\n", netdl.CryptoKeyAndIV[:16], netdl.CryptoKeyAndIV[16:])
-
 	var productInfo string
 	var targetName, targetVersion string
 	{
@@ -191,9 +145,7 @@ func main() {
 		data := make([]byte, 0x40)
 		copy(data, productInfo)
 
-		b, _ := aes.NewCipher(netdl.CryptoKeyAndIV[:16])
-		c := cipher.NewCBCEncrypter(b, netdl.CryptoKeyAndIV[16:])
-		c.CryptBlocks(data, data)
+		crypto.NetworkEncrypt(data)
 		base64.StdEncoding.Encode(EncryptedProductInfo.ProductInfo[:], data)
 	}
 
@@ -201,9 +153,7 @@ func main() {
 		data := make([]byte, 0x20)
 		copy(data, netdl.ProductId[:])
 
-		b, _ := aes.NewCipher(netdl.CryptoKeyAndIV[:16])
-		c := cipher.NewCBCEncrypter(b, netdl.CryptoKeyAndIV[16:])
-		c.CryptBlocks(data, data)
+		crypto.NetworkEncrypt(data)
 		base64.StdEncoding.Encode(EncryptedProductInfo.ProductId[:], data)
 	}
 	fmt.Printf("netdl:encryptedProductInfoB64=%s\n", utils.CString(EncryptedProductInfo.ProductInfo[:]))
@@ -284,9 +234,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	b, _ := aes.NewCipher(netdl.CryptoKeyAndIV[:16])
-	c := cipher.NewCBCDecrypter(b, netdl.CryptoKeyAndIV[16:])
-	c.CryptBlocks(respBuf, respBuf)
+	crypto.NetworkDecrypt(respBuf)
 	respBuf = bytes.TrimRight(respBuf, "\x00")
 	fmt.Printf("\n%s\n", hex.Dump(respBuf))
 	fmt.Printf("\n%s\n", respBuf)
@@ -351,9 +299,7 @@ func main() {
 				}
 				part = part[hdrLen+4:]
 
-				b, _ := aes.NewCipher(netdl.CryptoKeyAndIV[:16])
-				c := cipher.NewCBCDecrypter(b, netdl.CryptoKeyAndIV[16:])
-				c.CryptBlocks(part, part)
+				crypto.NetworkDecrypt(part)
 				var hdr ModuleHeader
 
 				n, err := binary.Decode(part, binary.BigEndian, &hdr)
@@ -363,7 +309,7 @@ func main() {
 				part = part[n : n+int(hdr.CmpSize)]
 
 				if hdr.ModuleAttr&0x02 > 0 {
-					decipher(part, part)
+					crypto.NetworkDecipher(part)
 				}
 
 				if hdr.ModuleAttr&0x01 > 0 {
