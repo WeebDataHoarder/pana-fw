@@ -7,7 +7,7 @@
 
 Decrypts and demuxes a Panasonic FRM update package, then reassembles it, with optional patching or replacements of parts given.
 
-These can be directly flashed on Panasonic compatible devices.
+These can be directly flashed on Panasonic compatible devices. MediaTek rebranded devices are not supported.
 
 
 #### Legacy devices

@@ -52,6 +52,26 @@ func findKey(block [8]byte, pattern []byte) (key crypto.CustomKey, ok bool) {
 	return crypto.CustomKey{}, false
 }
 
+func findKeySlow(block []byte) (key crypto.CustomKey, ok bool) {
+	offset := -1
+	var bestScore int
+	for i, k := range crypto.CustomKeys {
+		testBuf := slices.Clone(block)
+		expanded := k.Expand()
+		expanded.Decrypt(testBuf[:])
+		score := bytes.Count(testBuf, []byte{0x00, 0x00, 0x00, 0x00})
+		score += bytes.Count(testBuf, []byte{0xFF, 0xFF, 0xFF, 0xFF})
+		if score > bestScore {
+			bestScore = score
+			offset = i
+		}
+	}
+	if offset == -1 {
+		return crypto.CustomKey{}, false
+	}
+	return crypto.CustomKeys[offset], true
+}
+
 func findAESKey(block []byte, pattern []byte) (key crypto.AESKey, ok bool) {
 	for _, k := range crypto.AESKeys {
 		testBuf := bytes.Clone(block)
@@ -145,17 +165,21 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 
 		m.Offset = 48
 	}
+	var ok bool
 
 	if m.HeaderEncrypted {
 		block := [8]byte(buf[m.Offset : m.Offset+8])
-		var ok bool
 		if m.CustomKey, ok = findKey(block, []byte("PROG0.00")); ok {
 
 		} else if m.CustomKey, ok = findKey(block, []byte("PROG")); ok {
 
+		} else if m.CustomKey, ok = findKeySlow(buf[m.Offset:]); ok {
+
 		} else {
 			return errors.New("encryption key not found")
 		}
+	} else if m.CustomKey, ok = findKeySlow(buf[m.Offset:]); ok {
+
 	} else {
 		//TODO
 		return errors.New("encryption key not found: unencrypted header")
