@@ -113,3 +113,39 @@ func CustomRound(state, key [4]byte) [4]byte {
 	state[3] += sub[3]
 	return state
 }
+
+// CustomKey The result of two 8x8 byte keys, XOR'd together in a special way
+// Each key is then reduced to 56 bit security on key expansion
+type CustomKey [8]byte
+
+func (k CustomKey) Expand() ExpandedCustomKey {
+	return CustomKeySchedule(k)
+}
+
+type ExpandedCustomKey [32]byte
+
+func (k ExpandedCustomKey) Encrypt(data []byte) {
+	CustomEncrypt(data, k)
+}
+func (k ExpandedCustomKey) Decrypt(data []byte) {
+	CustomDecrypt(data, k)
+}
+
+func CustomKeySchedule(xorInput CustomKey) (key [32]byte) {
+	k := xorInput
+	k[7] = 0
+	// 56-bit reduction
+	k[1] ^= xorInput[7]
+	k[4] ^= xorInput[7]
+
+	copy(key[:7], k[:])
+
+	keyVector := [4]byte{0x35, 0x7D, 0xFB, 0x9A}
+
+	for round := range CustomRounds {
+		offset := (round & 7) * 4
+		keyVector = CustomRound([4]byte(key[offset:]), keyVector)
+		copy(key[offset:], keyVector[:])
+	}
+	return key
+}
