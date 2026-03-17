@@ -217,7 +217,7 @@ func main() {
 
 				outBuf := make([]byte, cramfs.PAGE_SIZE*2)
 
-				out, _ := lzss.Decompress(data, windowIndex)
+				out, _ := lzss.Decompress(data, windowIndex, 1024*1024*32)
 				//fmt.Printf("decoded winOffset %d @ %d bytes %x\n", windowIndex, len(out), sha1.Sum(out))
 
 				if fastCheck != nil {

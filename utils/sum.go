@@ -1,6 +1,9 @@
 package utils
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"math/bits"
+)
 
 func ChecksumAFFS(data []byte) (result uint32) {
 	for i := 0; i < len(data); i += 4 {
@@ -10,9 +13,9 @@ func ChecksumAFFS(data []byte) (result uint32) {
 }
 
 func Checksum32(data []byte) uint32 {
-	var sum int32
+	var sum uint32
 	for i := range data {
-		sum += int32(data[i])
+		sum += uint32(data[i])
 	}
-	return uint32(-sum)
+	return bits.RotateLeft32(sum, 16)
 }

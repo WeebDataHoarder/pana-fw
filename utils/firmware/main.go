@@ -260,8 +260,8 @@ func (l *MainList) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key 
 		return err
 	}
 
-	if sumFunc(hdrBuf[4:]) != l.Header.Checksum {
-		return ErrInvalidHeaderChecksum
+	if sum := sumFunc(hdrBuf[4:]); sum != l.Header.Checksum {
+		return fmt.Errorf("%08x != %08x: %w", sum, l.Header.Checksum, ErrInvalidHeaderChecksum)
 	}
 
 	count := (l.Header.ListSize - 20) / 8
@@ -278,8 +278,8 @@ func (l *MainList) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key 
 		if _, err = io.ReadFull(r, buf); err != nil {
 			return err
 		}
-		if sumFunc(buf) != e.Checksum {
-			return ErrInvalidDataChecksum
+		if sum := sumFunc(buf); sum != e.Checksum {
+			return fmt.Errorf("%08x != %08x: %w", sum, e.Checksum, ErrInvalidDataChecksum)
 		}
 
 		if len(buf) < l.encryptedSize() {
@@ -385,8 +385,8 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 		cksumBuf = append(cksumBuf, f.Decompressed[i])
 	}
 
-	if sumFunc(cksumBuf) != f.Header.Checksum {
-		return ErrInvalidDataChecksum
+	if sum := sumFunc(cksumBuf); sum != f.Header.Checksum {
+		return fmt.Errorf("%08x != %08x: %w", sum, f.Header.Checksum, ErrInvalidDataChecksum)
 	}
 
 	if bytes.Equal(f.Decompressed[:len(CompressedFileHeaderMagic)], []byte(CompressedFileHeaderMagic)) {

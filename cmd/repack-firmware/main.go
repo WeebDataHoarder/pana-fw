@@ -54,16 +54,16 @@ func main() {
 	}
 
 	if fw.AESKey != nil {
-		fmt.Printf("Using AES+Custom key = %x, iv = %x, custom = %x\n", fw.AESKey.Key, fw.AESKey.IV, fw.AESKey.Custom)
+		fmt.Printf("FRM: Using AES+Custom key = %x, iv = %x, custom = %x\n", fw.AESKey.Key, fw.AESKey.IV, fw.AESKey.Custom)
 	} else {
-		fmt.Printf("Using Custom key = %x\n", fw.CustomKey)
+		fmt.Printf("FRM: Using Custom key = %x\n", fw.CustomKey)
 	}
 
 	for _, mod := range fw.Entries {
 		if mod == nil {
 			continue
 		}
-		fmt.Printf("name %s ver %s model = %s offset = %08x len %08x\n", utils.CString(mod.Header.Name[:]), utils.CString(mod.Header.Version[:]), utils.CString(mod.Header.Model[:]), mod.Header.Offset, mod.Header.Size)
+		fmt.Printf("HEADER: name %s ver %s model = %s offset = %08x len %08x\n", utils.CString(mod.Header.Name[:]), utils.CString(mod.Header.Version[:]), utils.CString(mod.Header.Model[:]), mod.Header.Offset, mod.Header.Size)
 	}
 
 	// do changes, patches
@@ -75,7 +75,7 @@ func main() {
 				if err != nil {
 					panic(err)
 				}
-				fmt.Printf("patch main version %d -> %d\n", ver, ver+int(*increaseVersion))
+				fmt.Printf("MAIN: patching version %d -> %d\n", ver, ver+int(*increaseVersion))
 				ver += int(*increaseVersion)
 				mod.Header.Version = [4]byte([]byte(strconv.Itoa(ver)))
 
@@ -90,10 +90,23 @@ func main() {
 				panic(err)
 			}
 
+			switch ml.Header.CompressionType {
+			case firmware.CompressionTypeNone:
+				fmt.Printf("MAIN: source compression: None\n")
+			case firmware.CompressionTypeLZSS:
+				fmt.Printf("MAIN: source compression: LZSS\n")
+			case firmware.CompressionTypeGZIP:
+				fmt.Printf("MAIN: source compression: GZIP\n")
+			case firmware.CompressionTypeGZIP | firmware.CompressionTypeLZSS:
+				fmt.Printf("MAIN: source compression: GZIP+LZSS\n")
+			default:
+				fmt.Printf("MAIN: source compression: Unknown\n")
+			}
+
 			for i, s := range ml.Segments {
-				fmt.Printf("entry %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Header.DestinationSize, s.Header.DestinationAddress, s.Header.SourceSize, s.Header.SourceAddress)
+				fmt.Printf("MAIN: entry %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Header.DestinationSize, s.Header.DestinationAddress, s.Header.SourceSize, s.Header.SourceAddress)
 				if s.Child != nil {
-					fmt.Printf("child %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Child.Header.DestinationSize, s.Child.Header.DestinationAddress, s.Child.Header.SourceSize, s.Child.Header.SourceAddress)
+					fmt.Printf("MAIN:  child %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Child.Header.DestinationSize, s.Child.Header.DestinationAddress, s.Child.Header.SourceSize, s.Child.Header.SourceAddress)
 				}
 			}
 
@@ -125,6 +138,7 @@ func main() {
 
 			for _, p := range parts {
 				if p.Index == *rawPartition && *patchRaw != "" {
+					fmt.Printf("MAIN: patching RAW at fma%d @ 0x%08x\n", p.Index, p.Offset)
 					patchData, err := os.ReadFile(*patchRaw)
 					if err != nil {
 						panic(err)
@@ -141,7 +155,7 @@ func main() {
 					patched = true
 				}
 				if p.Index == *CRAMFS0Partition && *patchCRAMFS0 != "" {
-					fmt.Printf("patching CRAMFS0 at fma%d @ 0x%08x\n", p.Index, p.Offset)
+					fmt.Printf("MAIN: patching CRAMFS0 at fma%d @ 0x%08x\n", p.Index, p.Offset)
 					// sanity: check that a CRAMFS exists at that offset already
 					{
 						fs, err := cramfs.NewCramFS(p.Data)
@@ -183,7 +197,7 @@ func main() {
 					patched = true
 				}
 				if p.Index == *romfsPartition && *patchRomFS != "" {
-					fmt.Printf("patching RomFS at fma%d @ 0x%08x\n", p.Index, p.Offset)
+					fmt.Printf("MAIN: patching RomFS at fma%d @ 0x%08x\n", p.Index, p.Offset)
 					// sanity: check that a RomFS exists at that offset already
 					{
 						var fs romfs.RomFS
@@ -215,7 +229,7 @@ func main() {
 					patched = true
 				}
 				if p.Index == *CRAMFS1Partition && *patchCRAMFS1 != "" {
-					fmt.Printf("patching CRAMFS1 at fma%d @ 0x%08x\n", p.Index, p.Offset)
+					fmt.Printf("MAIN: patching CRAMFS1 at fma%d @ 0x%08x\n", p.Index, p.Offset)
 					// sanity: check that a CRAMFS exists at that offset already
 					{
 						fs, err := cramfs.NewCramFS(p.Data)
@@ -259,6 +273,7 @@ func main() {
 			}
 
 			if patched {
+				fmt.Printf("MAIN: repacking segments...\n")
 				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, ml.Header.DecompressedSegmentSize, compressionType)
 				if err != nil {
 					panic(err)
@@ -268,6 +283,10 @@ func main() {
 					panic(err)
 				}
 				mod.Data = mlData
+
+				for i, s := range newMl.Segments {
+					fmt.Printf("MAIN: new entry %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Header.DestinationSize, s.Header.DestinationAddress, s.Header.SourceSize, s.Header.SourceAddress)
+				}
 			}
 
 		}

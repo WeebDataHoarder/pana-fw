@@ -147,7 +147,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 
 		sum := m.Sum(buf[:44])
 		if sum != header.Sum {
-			return ErrInvalidHeaderChecksum
+			return fmt.Errorf("%08x != %08x: %w", sum, header.Sum, ErrInvalidHeaderChecksum)
 		}
 
 		// advance
@@ -194,9 +194,9 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 		m.ExpandedKey.Decrypt(buf[m.Offset:FileHeaderSize])
 	}
 
-	// old firmware
+	// TODO: old firmware selection
 	if m.Offset == 0 && m.HeaderEncrypted && m.AESKey == nil {
-		m.Sum = utils.Checksum32
+		//m.Sum = utils.Checksum32
 	}
 
 	m.Header = buf[:FileHeaderSize]
@@ -365,7 +365,7 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 	}
 
 	if sum := sumFunc(hdrBuf[:len(hdrBuf)-4]); sum != m.Header.HeaderSum {
-		return ErrInvalidHeaderChecksum
+		return fmt.Errorf("%08x != %08x: %w", sum, m.Header.HeaderSum, ErrInvalidHeaderChecksum)
 	}
 
 	if m.Header.OEM != OEMPanasonic {
@@ -391,8 +391,8 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 		key.Decrypt(m.Data)
 	}
 
-	if sumFunc(m.Data) != m.Header.DataSum {
-		return ErrInvalidDataChecksum
+	if sum := adler32.Checksum(m.Data); sum != m.Header.DataSum {
+		return fmt.Errorf("%08x != %08x: %w", sum, m.Header.DataSum, ErrInvalidDataChecksum)
 	}
 
 	return nil
