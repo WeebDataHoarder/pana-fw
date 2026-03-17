@@ -30,7 +30,7 @@ func TestCompressRoundtrip(t *testing.T) {
 
 	t.Logf("compress %d -> %d bytes (ratio %.02f%%)", len(testData), len(buf), 100-(float64(len(buf))/float64(len(testData)))*100)
 
-	dec, err := Decompress(buf, 0)
+	dec, err := Decompress(buf, 0, 1024*1024*32)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestCompressExhaustiveRoundtrip(t *testing.T) {
 
 	t.Logf("compress %d -> %d bytes (ratio %.02f%%)", len(testData), len(buf), 100-(float64(len(buf))/float64(len(testData)))*100)
 
-	dec, err := Decompress(buf, 0)
+	dec, err := Decompress(buf, 0, 1024*1024*32)
 	if err != nil {
 		t.Fatal(err)
 	}

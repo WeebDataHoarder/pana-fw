@@ -1,23 +1,15 @@
 package lzss
 
-import (
-	"errors"
-)
-
 func Compress(data []byte, exhaustive bool) (output []byte, err error) {
 	if len(data) == 0 {
 		return nil, nil
-	}
-
-	if len(data) > DataMaxSize {
-		return nil, errors.New("out of bounds input")
 	}
 
 	windowIndex := WindowInitialIndex
 
 	window := CreateWindow()
 
-	output = make([]byte, 0, DataMaxSize)
+	output = make([]byte, 0, len(data))
 
 	var countFlags int
 	var flagsOffset int

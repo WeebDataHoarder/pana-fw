@@ -4,13 +4,15 @@ import (
 	"errors"
 )
 
+var ErrOutOfBounds = errors.New("out of bounds output")
+
 // Decompress Decompresses a provided buffer with a window offset tweak.
 // For normal usages, windowOffset should be set to 0
-func Decompress(b []byte, windowOffset int) (output []byte, err error) {
+func Decompress(b []byte, windowOffset, maxSize int) (output []byte, err error) {
 
 	windowIndex := (WindowInitialIndex + windowOffset) % WindowSize
 
-	output = make([]byte, 0, DataMaxSize)
+	output = make([]byte, 0, maxSize)
 
 	window := CreateWindow()
 
@@ -27,26 +29,26 @@ func Decompress(b []byte, windowOffset int) (output []byte, err error) {
 
 		if flags&1 == 0 {
 			if len(b) < 2 {
-				return output, errors.New("out of bounds output")
+				return output, ErrOutOfBounds
 			}
 			offsetIndex = uint64(b[0]) | (uint64(b[1]&0xF0) << LengthBits)
 			length = uint64(b[1] & 0x0F)
 			b = b[2:]
-			if length += MaxUncoded; DataMaxSize < (length + uint64(len(output))) {
-				return output, errors.New("out of bounds output")
+			if length += MaxUncoded; uint64(maxSize) < (length + uint64(len(output))) {
+				return output, ErrOutOfBounds
 			}
 
 			windowIndex, buf = window.GetSet(int(offsetIndex), windowIndex, int(length), windowBuffer)
 			output = append(output, buf...)
 		} else {
 			if len(b) < 1 {
-				return output, errors.New("out of bounds output")
+				return output, ErrOutOfBounds
 			}
 
 			literal = uint64(b[0])
 			b = b[1:]
-			if (DataMaxSize - 1) < len(output) {
-				return output, errors.New("out of bounds output")
+			if (maxSize - 1) < len(output) {
+				return output, ErrOutOfBounds
 			}
 
 			output = append(output, byte(literal))

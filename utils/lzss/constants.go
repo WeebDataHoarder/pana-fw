@@ -1,7 +1,5 @@
 package lzss
 
-const DataMaxSize = 1024 * 1024 * 32
-
 const LiteralBits = 8
 
 // OffsetBits Number of bits for the Window offset. From this the WindowSize will be calculated

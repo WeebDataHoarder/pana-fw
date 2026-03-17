@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/adler32"
 	"io"
 	"math/bits"
 	"sync/atomic"
@@ -48,7 +47,7 @@ type MainList struct {
 	Data     []byte
 }
 
-func NewMainListWithCompression(data []byte, key *crypto.ExpandedCustomKey, compressionType CompressionType) (*MainList, error) {
+func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey, compressionType CompressionType) (*MainList, error) {
 	if bits.OnesCount32(uint32(compressionType)) != 1 {
 		return nil, errors.New("compression type is not supported")
 	}
@@ -139,7 +138,7 @@ func NewMainListWithCompression(data []byte, key *crypto.ExpandedCustomKey, comp
 					SourceAddress: 0,
 					FooterOffset:  64 + uint32(padded),
 					Unknown2:      [4]byte{},
-					Checksum:      adler32.Checksum(cksumBuf),
+					Checksum:      sumFunc(cksumBuf),
 					ChecksumSkip:  checksumSkip,
 					Unused:        [16]byte{},
 				},
@@ -163,7 +162,7 @@ func NewMainListWithCompression(data []byte, key *crypto.ExpandedCustomKey, comp
 
 			out.Entries[offset/MainPartTargetSize] = MainListEntry{
 				Size:     uint32(len(outBuf)),
-				Checksum: adler32.Checksum(outBuf),
+				Checksum: sumFunc(outBuf),
 			}
 			out.Segments[offset/MainPartTargetSize] = segment
 			atomic.AddUint32(&out.Header.ListSize, 8)
@@ -183,7 +182,7 @@ func NewMainListWithCompression(data []byte, key *crypto.ExpandedCustomKey, comp
 const MainPartEncryptedSize = 0x1400
 const MainPartTargetSize = 16 * 1024 * 1024
 
-func (l *MainList) ToBuffer(key *crypto.ExpandedCustomKey) (buf []byte, err error) {
+func (l *MainList) ToBuffer(sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (buf []byte, err error) {
 	hdrBuf := make([]byte, l.Header.ListSize)
 
 	if _, err = binary.Encode(hdrBuf[:20], binary.LittleEndian, l.Header); err != nil {
@@ -196,7 +195,7 @@ func (l *MainList) ToBuffer(key *crypto.ExpandedCustomKey) (buf []byte, err erro
 		}
 	}
 
-	binary.LittleEndian.PutUint32(hdrBuf, adler32.Checksum(hdrBuf[4:]))
+	binary.LittleEndian.PutUint32(hdrBuf, sumFunc(hdrBuf[4:]))
 	buf = append(buf, hdrBuf...)
 
 	for _, s := range l.Segments {
@@ -218,7 +217,7 @@ func (l *MainList) ToBuffer(key *crypto.ExpandedCustomKey) (buf []byte, err erro
 	return buf, nil
 }
 
-func (l *MainList) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (err error) {
+func (l *MainList) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
 	if err = binary.Read(r, binary.LittleEndian, &l.Header); err != nil {
 		return err
 	}
@@ -236,7 +235,7 @@ func (l *MainList) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (e
 		return err
 	}
 
-	if adler32.Checksum(hdrBuf[4:]) != l.Header.Checksum {
+	if sumFunc(hdrBuf[4:]) != l.Header.Checksum {
 		return ErrInvalidHeaderChecksum
 	}
 
@@ -254,7 +253,7 @@ func (l *MainList) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (e
 		if _, err = io.ReadFull(r, buf); err != nil {
 			return err
 		}
-		if adler32.Checksum(buf) != e.Checksum {
+		if sumFunc(buf) != e.Checksum {
 			return ErrInvalidDataChecksum
 		}
 
@@ -267,7 +266,7 @@ func (l *MainList) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (e
 		}
 
 		var f CompressedFile
-		if err = f.FromBuffer(buf); err != nil {
+		if err = f.FromBuffer(buf, sumFunc); err != nil {
 			return fmt.Errorf("could not decompress file: %w", err)
 		}
 
@@ -309,7 +308,7 @@ func (f *CompressedFile) ToBuffer() (buf []byte, err error) {
 	return buf, nil
 }
 
-func (f *CompressedFile) FromBuffer(buf []byte) (err error) {
+func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (err error) {
 	// multiple segments
 	if _, err := binary.Decode(buf, binary.LittleEndian, &f.Header); err != nil {
 		return err
@@ -330,7 +329,7 @@ func (f *CompressedFile) FromBuffer(buf []byte) (err error) {
 
 	switch CompressionType(f.Header.CompressionType) {
 	case CompressionTypeLZSS:
-		f.Decompressed, err = lzss.Decompress(f.Data, 0)
+		f.Decompressed, err = lzss.Decompress(f.Data, 0, int(f.Header.DestinationSize))
 		if err != nil {
 			return err
 		}
@@ -360,13 +359,13 @@ func (f *CompressedFile) FromBuffer(buf []byte) (err error) {
 		cksumBuf = append(cksumBuf, f.Decompressed[i])
 	}
 
-	if adler32.Checksum(cksumBuf) != f.Header.Checksum {
+	if sumFunc(cksumBuf) != f.Header.Checksum {
 		return ErrInvalidDataChecksum
 	}
 
 	if bytes.Equal(f.Decompressed[:len(CompressedFileHeaderMagic)], []byte(CompressedFileHeaderMagic)) {
 		var child CompressedFile
-		if err = child.FromBuffer(f.Decompressed); err != nil {
+		if err = child.FromBuffer(f.Decompressed, sumFunc); err != nil {
 			return fmt.Errorf("could not decompress children: %w", err)
 		}
 		f.Child = &child
@@ -391,7 +390,7 @@ type CompressedFileHeader struct {
 
 	Unknown2 [4]byte
 
-	// Checksum adler32 calculated every checksum_skip bytes of decompressed data
+	// Checksum calculated every checksum_skip bytes of decompressed data
 	Checksum     uint32
 	ChecksumSkip uint32
 	Unused       [16]byte

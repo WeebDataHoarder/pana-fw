@@ -21,13 +21,6 @@ type RomFS struct {
 	Files []File
 }
 
-func sum(data []byte) (result uint32) {
-	for i := 0; i < len(data); i += 4 {
-		result += binary.BigEndian.Uint32(data[i:])
-	}
-	return -result
-}
-
 func NewRomFS(buf []byte) (*RomFS, error) {
 	var fs RomFS
 	err := fs.Decode(buf)
@@ -59,7 +52,7 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 	// set sum to 0
 	binary.BigEndian.PutUint32(sumBuf[12:], 0)
 
-	if sum(sumBuf) != fs.SumFirst512 {
+	if utils.ChecksumAFFS(sumBuf) != fs.SumFirst512 {
 		return fmt.Errorf("romfs: invalid sum")
 	}
 
@@ -160,7 +153,7 @@ func (f *File) Decode(buf []byte) (n int, err error) {
 	sumBuf := slices.Clone(hdrBuf[:len(hdrBuf)-len(buf)])
 	binary.BigEndian.PutUint32(sumBuf[12:], 0)
 
-	if sum(sumBuf) != f.Header.Sum {
+	if utils.ChecksumAFFS(sumBuf) != f.Header.Sum {
 		return len(hdrBuf) - len(buf), fmt.Errorf("invalid sum")
 	}
 

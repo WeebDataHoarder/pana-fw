@@ -86,7 +86,7 @@ func main() {
 			}
 
 			var ml firmware.MainList
-			if err = ml.FromReader(bytes.NewReader(mod.Data), fw.ExpandedKey); err != nil {
+			if err = ml.FromReader(bytes.NewReader(mod.Data), fw.Sum, fw.ExpandedKey); err != nil {
 				panic(err)
 			}
 
@@ -259,11 +259,11 @@ func main() {
 			}
 
 			if patched {
-				newMl, err := firmware.NewMainListWithCompression(data, fw.ExpandedKey, compressionType)
+				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, compressionType)
 				if err != nil {
 					panic(err)
 				}
-				mlData, err := newMl.ToBuffer(fw.ExpandedKey)
+				mlData, err := newMl.ToBuffer(fw.Sum, fw.ExpandedKey)
 				if err != nil {
 					panic(err)
 				}

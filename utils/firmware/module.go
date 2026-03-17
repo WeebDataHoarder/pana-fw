@@ -91,6 +91,7 @@ type ModuleEntries struct {
 	AESKey          *crypto.AESKey
 	CustomKey       crypto.CustomKey
 	ExpandedKey     *crypto.ExpandedCustomKey
+	Sum             func(data []byte) uint32
 }
 
 type AESHeader struct {
@@ -108,6 +109,8 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 	if len(buf) < FileHeaderSize {
 		return errors.New("FRM file too short")
 	}
+
+	m.Sum = adler32.Checksum
 
 	// AES-class firmware
 	if aesKey, ok := findAESKey(buf[:64], PanasonicHeader[:]); ok {
@@ -142,7 +145,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 			return errors.New("AES header with non standard offset not supported")
 		}
 
-		sum := adler32.Checksum(buf[:44])
+		sum := m.Sum(buf[:44])
 		if sum != header.Sum {
 			return ErrInvalidHeaderChecksum
 		}
@@ -158,7 +161,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 	m.Offset = 0
 
 	if bytes.HasPrefix(buf, PanasonicHeader[:]) {
-		sum := adler32.Checksum(buf[:44])
+		sum := m.Sum(buf[:44])
 		if sum == binary.LittleEndian.Uint32(buf[44:]) {
 			m.HeaderEncrypted = buf[43] == 1
 		}
@@ -191,13 +194,18 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 		m.ExpandedKey.Decrypt(buf[m.Offset:FileHeaderSize])
 	}
 
+	// old firmware
+	if m.Offset == 0 && m.HeaderEncrypted && m.AESKey == nil {
+		m.Sum = utils.Checksum32
+	}
+
 	m.Header = buf[:FileHeaderSize]
 
 	r := bytes.NewReader(buf)
 
 	for {
 		var mod Module
-		if err := mod.FromReader(r, m.ExpandedKey); err != nil {
+		if err := mod.FromReader(r, m.Sum, m.ExpandedKey); err != nil {
 			if errors.Is(err, io.EOF) {
 				break
 			}
@@ -238,7 +246,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 				return nil, err
 			}
 		} else {
-			if err = mod.ToWriter(w, m.ExpandedKey); err != nil {
+			if err = mod.ToWriter(w, m.Sum, m.ExpandedKey); err != nil {
 				return nil, err
 			}
 		}
@@ -269,7 +277,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 			return nil, err
 		}
 		// put sum
-		binary.LittleEndian.PutUint32(hdrBuf[44:], adler32.Checksum(hdrBuf[:44]))
+		binary.LittleEndian.PutUint32(hdrBuf[44:], m.Sum(hdrBuf[:44]))
 		// encrypt header
 		m.AESKey.EncryptCustom(hdrBuf)
 		buf = append(hdrBuf, buf...)
@@ -292,10 +300,10 @@ var ErrInvalidHeaderChecksum = errors.New("invalid header checksum")
 var ErrInvalidDataChecksum = errors.New("invalid data checksum")
 var ErrNotModule = errors.New("not a module")
 
-func (m *Module) ToWriter(w io.WriteSeeker, key *crypto.ExpandedCustomKey) (err error) {
+func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
 	m.Header.Size = uint32(len(m.Data))
 
-	m.Header.DataSum = adler32.Checksum(m.Data)
+	m.Header.DataSum = sumFunc(m.Data)
 
 	if m.Header.Name != ModuleNameMAIN && key != nil {
 		key.Encrypt(m.Data)
@@ -308,7 +316,7 @@ func (m *Module) ToWriter(w io.WriteSeeker, key *crypto.ExpandedCustomKey) (err 
 	}
 
 	// put checksum
-	binary.LittleEndian.PutUint32(hdrBuf[len(hdrBuf)-4:], adler32.Checksum(hdrBuf[:len(hdrBuf)-4]))
+	binary.LittleEndian.PutUint32(hdrBuf[len(hdrBuf)-4:], sumFunc(hdrBuf[:len(hdrBuf)-4]))
 
 	if _, err = w.Write(hdrBuf[:]); err != nil {
 		return err
@@ -336,7 +344,7 @@ func (m *Module) ToWriter(w io.WriteSeeker, key *crypto.ExpandedCustomKey) (err 
 	return nil
 }
 
-func (m *Module) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (err error) {
+func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
 	var hdrBuf [48]byte
 
 	if _, err = io.ReadFull(r, hdrBuf[:]); err != nil {
@@ -356,7 +364,7 @@ func (m *Module) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (err
 		return err
 	}
 
-	if adler32.Checksum(hdrBuf[:len(hdrBuf)-4]) != m.Header.HeaderSum {
+	if sum := sumFunc(hdrBuf[:len(hdrBuf)-4]); sum != m.Header.HeaderSum {
 		return ErrInvalidHeaderChecksum
 	}
 
@@ -383,7 +391,7 @@ func (m *Module) FromReader(r io.ReadSeeker, key *crypto.ExpandedCustomKey) (err
 		key.Decrypt(m.Data)
 	}
 
-	if adler32.Checksum(m.Data) != m.Header.DataSum {
+	if sumFunc(m.Data) != m.Header.DataSum {
 		return ErrInvalidDataChecksum
 	}
 
