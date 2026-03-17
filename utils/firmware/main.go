@@ -30,10 +30,17 @@ type MainListHeader struct {
 	// Unknown1 seems to be always 1?
 	Unknown1 uint32
 	ListSize uint32
-	// DecompressedPartsSize The maximum size of each decompressed part. Use MainPartTargetSize
-	DecompressedPartsSize uint32
-	CompressionType       CompressionType
+	// DecompressedSegmentSize The maximum size of each decompressed part.
+	// Use ModernMainSegmentTargetSize for most firmware, though some legacy ones use LegacyMainSegmentTargetSize
+	// This also selects the encrypted size
+	DecompressedSegmentSize uint32
+	CompressionType         CompressionType
 }
+
+const ModernMainSegmentEncryptedSize = 0x1400
+const LegacyMainSegmentEncryptedSize = 0x2800
+const ModernMainSegmentTargetSize = 16 * 1024 * 1024
+const LegacyMainSegmentTargetSize = 32 * 1024 * 1024
 
 type MainListEntry struct {
 	Size     uint32
@@ -47,7 +54,7 @@ type MainList struct {
 	Data     []byte
 }
 
-func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey, compressionType CompressionType) (*MainList, error) {
+func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey, targetSegmentSize uint32, compressionType CompressionType) (*MainList, error) {
 	if bits.OnesCount32(uint32(compressionType)) != 1 {
 		return nil, errors.New("compression type is not supported")
 	}
@@ -55,19 +62,24 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 	var out MainList
 	out.Header.Unknown1 = 1
 	out.Header.ListSize = 20
-	out.Header.DecompressedPartsSize = MainPartTargetSize
+	out.Header.DecompressedSegmentSize = targetSegmentSize
 	out.Header.CompressionType = compressionType
 	out.Data = data
 
+	segmentSize := int(targetSegmentSize)
+
 	var wg errgroup.Group
-	out.Segments = make([]CompressedFile, utils.Align(len(data), MainPartTargetSize)/MainPartTargetSize)
+	out.Segments = make([]CompressedFile, utils.Align(len(data), segmentSize)/segmentSize)
 	out.Entries = make([]MainListEntry, len(out.Segments))
 
-	for offset := 0; offset < len(data); offset += MainPartTargetSize {
+	for offset := 0; offset < len(data); offset += segmentSize {
 		wg.Go(func() error {
 
-			part := data[offset:min(offset+MainPartTargetSize, len(data))]
+			partNumber := offset / segmentSize
 
+			part := data[offset:min(offset+segmentSize, len(data))]
+
+			// this value is arbitrary, but it's what is used on current firmware
 			const checksumSkip = 16
 
 			var cksumBuf []byte
@@ -80,7 +92,6 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 
 			switch compressionType {
 			case CompressionTypeGZIP:
-				const gzipPattern = "bank.rom.in%d.s"
 				if err := func() error {
 					wBuf := bytes.NewBuffer(nil)
 					w, err := gzip.NewWriterLevel(wBuf, gzip.BestCompression)
@@ -88,9 +99,12 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 						return err
 					}
 					defer w.Close()
+
+					// set flags as original, except time
 					w.Header.ModTime = time.Now().UTC()
 					w.Header.OS = 3
-					w.Header.Name = fmt.Sprintf(gzipPattern, offset/MainPartTargetSize)
+					// pattern seen on regular firmware
+					w.Header.Name = fmt.Sprintf("bank.rom.in%d.s", partNumber)
 
 					if _, err = w.Write(part); err != nil {
 						return err
@@ -127,7 +141,7 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 			segment := CompressedFile{
 				Header: CompressedFileHeader{
 					Magic: [8]byte([]byte(CompressedFileHeaderMagic)),
-					// Doesn't seem used
+					// Doesn't seem used, TODO: is this magic different elsewhere?
 					Unknown:            [4]byte([]byte("DRV ")),
 					CompressedFlag:     1,
 					CompressionType:    uint16(compressionType),
@@ -142,7 +156,7 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 					ChecksumSkip:  checksumSkip,
 					Unused:        [16]byte{},
 				},
-				Data:         compressed,
+				RawData:      compressed,
 				Decompressed: part,
 				Child:        nil,
 			}
@@ -152,19 +166,20 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 				return err
 			}
 
-			if len(outBuf) < MainPartEncryptedSize {
+			if len(outBuf) < out.encryptedSize() {
 				return errors.New("encrypted block too small")
 			} else if key != nil {
-				//yep, this can overlap
-				key.Encrypt(outBuf[len(outBuf)-MainPartEncryptedSize:])
-				key.Encrypt(outBuf[:MainPartEncryptedSize])
+				// yep, this can overlap
+				// done in reverse
+				key.Encrypt(outBuf[len(outBuf)-out.encryptedSize():])
+				key.Encrypt(outBuf[:out.encryptedSize()])
 			}
 
-			out.Entries[offset/MainPartTargetSize] = MainListEntry{
+			out.Entries[partNumber] = MainListEntry{
 				Size:     uint32(len(outBuf)),
 				Checksum: sumFunc(outBuf),
 			}
-			out.Segments[offset/MainPartTargetSize] = segment
+			out.Segments[partNumber] = segment
 			atomic.AddUint32(&out.Header.ListSize, 8)
 
 			return nil
@@ -179,8 +194,17 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 	return &out, nil
 }
 
-const MainPartEncryptedSize = 0x1400
-const MainPartTargetSize = 16 * 1024 * 1024
+func (l *MainList) encryptedSize() int {
+	if l.Header.DecompressedSegmentSize == LegacyMainSegmentTargetSize {
+		return LegacyMainSegmentEncryptedSize
+	} else if l.Header.DecompressedSegmentSize == ModernMainSegmentTargetSize {
+		return ModernMainSegmentEncryptedSize
+	} else {
+		// TODO?
+		return ModernMainSegmentEncryptedSize
+	}
+	//TODO: handle old legacy parts with 102400 offset along with FooterOffset+8 anchor for encryption
+}
 
 func (l *MainList) ToBuffer(sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (buf []byte, err error) {
 	hdrBuf := make([]byte, l.Header.ListSize)
@@ -204,12 +228,13 @@ func (l *MainList) ToBuffer(sumFunc func([]byte) uint32, key *crypto.ExpandedCus
 			return nil, err
 		}
 
-		if len(part) < MainPartEncryptedSize {
+		if len(part) < l.encryptedSize() {
+			//TODO handle this across overlap, versions
 			return nil, errors.New("encrypted block too small")
 		} else if key != nil {
 			//yep, this can overlap
-			key.Encrypt(part[len(part)-MainPartEncryptedSize:])
-			key.Encrypt(part[:MainPartEncryptedSize])
+			key.Encrypt(part[len(part)-l.encryptedSize():])
+			key.Encrypt(part[:l.encryptedSize()])
 		}
 		buf = append(buf, part...)
 	}
@@ -257,12 +282,12 @@ func (l *MainList) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key 
 			return ErrInvalidDataChecksum
 		}
 
-		if len(buf) < MainPartEncryptedSize {
+		if len(buf) < l.encryptedSize() {
 			return errors.New("encrypted block too small")
 		} else if key != nil {
 			//yep, this can overlap
-			key.Decrypt(buf[:MainPartEncryptedSize])
-			key.Decrypt(buf[len(buf)-MainPartEncryptedSize:])
+			key.Decrypt(buf[:l.encryptedSize()])
+			key.Decrypt(buf[len(buf)-l.encryptedSize():])
 		}
 
 		var f CompressedFile
@@ -283,8 +308,9 @@ const CompressedFileHeaderMagic = "EXTRHEAD"
 const CompressedFileFooterMagic = "EXTRFOOT"
 
 type CompressedFile struct {
-	Header       CompressedFileHeader
-	Data         []byte
+	Header CompressedFileHeader
+	// RawData Raw encoded data
+	RawData      []byte
 	Decompressed []byte
 	Child        *CompressedFile
 }
@@ -301,9 +327,9 @@ func (f *CompressedFile) ToBuffer() (buf []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
-	buf = append(buf, f.Data...)
+	buf = append(buf, f.RawData...)
 	// pad
-	buf = append(buf, make([]byte, f.Header.FooterOffset-uint32(64+len(f.Data)))...)
+	buf = append(buf, make([]byte, f.Header.FooterOffset-uint32(64+len(f.RawData)))...)
 	buf = append(buf, []byte(CompressedFileFooterMagic)...)
 	return buf, nil
 }
@@ -321,7 +347,7 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 	if !bytes.Equal(buf[f.Header.FooterOffset:f.Header.FooterOffset+uint32(len(CompressedFileFooterMagic))], []byte(CompressedFileFooterMagic)) {
 		return errors.New("expected EXTRFOOT, not found")
 	}
-	f.Data = buf[64 : 64+f.Header.SourceSize]
+	f.RawData = buf[64 : 64+f.Header.SourceSize]
 
 	if f.Header.CompressedFlag != 1 {
 		return errors.New("expected compressed flag, got 0")
@@ -329,12 +355,12 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 
 	switch CompressionType(f.Header.CompressionType) {
 	case CompressionTypeLZSS:
-		f.Decompressed, err = lzss.Decompress(f.Data, 0, int(f.Header.DestinationSize))
+		f.Decompressed, err = lzss.Decompress(f.RawData, 0, int(f.Header.DestinationSize))
 		if err != nil {
 			return err
 		}
 	case CompressionTypeGZIP:
-		gz, err := gzip.NewReader(bytes.NewReader(f.Data))
+		gz, err := gzip.NewReader(bytes.NewReader(f.RawData))
 		if err != nil {
 			return err
 		}

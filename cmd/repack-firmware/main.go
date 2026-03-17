@@ -259,7 +259,7 @@ func main() {
 			}
 
 			if patched {
-				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, compressionType)
+				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, ml.Header.DecompressedSegmentSize, compressionType)
 				if err != nil {
 					panic(err)
 				}
