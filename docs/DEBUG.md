@@ -18,14 +18,14 @@ Some debug messages and states are sent to this port, and stdout/stderr of progr
 ### Serial Log Menu
 
 Serial Log Menu prompt can be triggered by bridging XDEBUG pin to GND for a second.
-It will ask for a password unless started with `-nopasswd`.
+It will ask for a password unless started with `-nopasswd`. Password for known devices is `pm6030p`.
 
 Alternatively you may send `0x0C, 0x0F, 0x07` in that order directly on the input, which will trigger the SLM as well without using XDEBUG.
 
 Password hash is available under /usr/dtvrec/bin/slm. MD5 crypt() format
 
 ```
-$1$UmYifOe7$u8VBq8WANl5zvis7uJw.v.
+$1$UmYifOe7$u8VBq8WANl5zvis7uJw.v.:pm6030p
 ```
 
 slm process (*SLM_MAIN*) can be killed, then restarted with `-nopasswd` to allow direct access after triggering SLM.
