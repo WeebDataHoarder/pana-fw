@@ -175,6 +175,8 @@ Output is always produced compressed. It'll autodetect what compression was used
 Most `PROG` (patcher program included in firmware) support `GZIP`, but Panasonic may not always use `GZIP` on its published firmware, sometimes depends on source (Manual DL vs NETDL may use different).
 You can always override this via the `-compression=gzip` argument.
 
+In case of doubt, use `LZSS`. `GZIP` alone may not complete upgrading on modern devices, in which case you can retry (after a reboot) with `LZSS` instead.
+
 ### Flashing via CD-R
 
 Rename the update file to `PANA_DVD.FRM`. 
