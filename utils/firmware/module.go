@@ -417,8 +417,9 @@ type ModuleHeader struct {
 	// Size Module data size
 	Size uint32
 	// DataSum Module data Adler32 checksum
-	DataSum  uint32
-	Unknown3 [4]byte
+	DataSum         uint32
+	Unknown3        [3]byte
+	CompressionType uint8
 	// HeaderSum Module entry Adler32 checksum (all bytes before this)
 	HeaderSum uint32
 }

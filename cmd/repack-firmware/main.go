@@ -287,6 +287,7 @@ func main() {
 				for i, s := range newMl.Segments {
 					fmt.Printf("MAIN: new entry %d: dst_size = %08x, dst = %08x, src_size = %08x, src = %08x\n", i, s.Header.DestinationSize, s.Header.DestinationAddress, s.Header.SourceSize, s.Header.SourceAddress)
 				}
+				mod.Header.CompressionType = uint8(compressionType)
 			}
 
 		}
