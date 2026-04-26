@@ -221,7 +221,16 @@ Decompresses a [CRAMFS](https://docs.kernel.org/filesystems/cramfs.html) and pac
 
 Usage:
 ```
-go run ./cmd/cramfs-to-tar -in fma6.cramfs -out fma6.tar
+go run ./cmd/cramfs-to-tar -in fma5.cramfs -out fma5.tar
+```
+
+## cmd/romfs-to-tar
+
+Decompresses a [RomFS](https://docs.kernel.org/filesystems/romfs.html) and packs the file and directory structure onto a Tar file for further consumption.
+
+Usage:
+```
+go run ./cmd/romfs-to-tar -in fma6.romfs -out fma6.tar
 ```
 
 ## cmd/demux-main

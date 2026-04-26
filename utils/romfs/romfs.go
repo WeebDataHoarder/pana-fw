@@ -58,7 +58,23 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 
 	offset := 16 + len(fs.VolumeName)
 
+	type dirLevel struct {
+		parentPath  string
+		lastSibling bool
+	}
+	var dirStack []dirLevel
 	var currentPath = "/"
+
+	popDirs := func() {
+		for len(dirStack) > 0 {
+			top := dirStack[len(dirStack)-1]
+			dirStack = dirStack[:len(dirStack)-1]
+			currentPath = top.parentPath
+			if !top.lastSibling {
+				break
+			}
+		}
+	}
 
 	for uint32(offset) < fs.Size {
 		var f File
@@ -67,14 +83,25 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 			return err
 		}
 		offset += n
-		f.Name = path.Join(currentPath, utils.CString(f.Header.Name))
-		fs.Files = append(fs.Files, f)
-		if f.Header.NextFileHeader == 0 {
-			// no more files?
-			currentPath = path.Dir(currentPath)
+
+		name := utils.CString(f.Header.Name)
+		isLast := f.Header.NextFileHeader == 0
+
+		if f.IsHardLink() && name == "." {
+			if isLast {
+				popDirs()
+			}
+			continue
 		}
+
+		f.Name = path.Join(currentPath, name)
+		fs.Files = append(fs.Files, f)
+
 		if f.IsDir() {
-			currentPath = path.Join(currentPath, utils.CString(f.Header.Name))
+			dirStack = append(dirStack, dirLevel{currentPath, isLast})
+			currentPath = f.Name
+		} else if isLast {
+			popDirs()
 		}
 	}
 	return nil
@@ -157,7 +184,7 @@ func (f *File) Decode(buf []byte) (n int, err error) {
 		return len(hdrBuf) - len(buf), fmt.Errorf("invalid sum")
 	}
 
-	if f.Header.Size > 0 {
+	if (f.IsFile() || f.IsSoftLink()) && f.Header.Size > 0 {
 		f.Data = slices.Clone(buf[:f.Header.Size])
 		buf = buf[utils.Align(f.Header.Size, 16):]
 	}

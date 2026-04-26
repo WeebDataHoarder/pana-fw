@@ -5,6 +5,7 @@ import (
 	"math/bits"
 )
 
+// sbox[i] = GF8(i^83) mod 285
 var sbox = func() (out [256]byte) {
 	var exp [256]byte
 	var log [256]byte
