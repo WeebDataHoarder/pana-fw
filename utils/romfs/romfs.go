@@ -31,7 +31,7 @@ func NewRomFS(buf []byte) (*RomFS, error) {
 }
 
 func (fs *RomFS) Decode(buf []byte) (err error) {
-	if len(buf) < 1024 {
+	if len(buf) < 32 {
 		return fmt.Errorf("romfs: too small")
 	}
 
@@ -48,10 +48,12 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 		fs.VolumeName = slices.Clone(buf[16 : 16+utils.Align(i+1, 16)])
 	}
 
-	sumBuf := slices.Clone(buf[:512])
-	// set sum to 0
+	sumSize := 512
+	if int(fs.Size) < sumSize {
+		sumSize = int(fs.Size)
+	}
+	sumBuf := slices.Clone(buf[:sumSize])
 	binary.BigEndian.PutUint32(sumBuf[12:], 0)
-
 	if utils.ChecksumAFFS(sumBuf) != fs.SumFirst512 {
 		return fmt.Errorf("romfs: invalid sum")
 	}
@@ -78,6 +80,7 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 
 	for uint32(offset) < fs.Size {
 		var f File
+		f.Offset = uint32(offset)
 		n, err := f.Decode(buf[offset:])
 		if err != nil {
 			return err
@@ -87,7 +90,8 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 		name := utils.CString(f.Header.Name)
 		isLast := f.Header.NextFileHeader == 0
 
-		if f.IsHardLink() && name == "." {
+		// Skip "." and ".." structural entries
+		if name == "." || name == ".." {
 			if isLast {
 				popDirs()
 			}
@@ -114,6 +118,13 @@ type FileHeader struct {
 	Size           uint32
 	Sum            uint32
 	Name           []byte
+}
+
+type File struct {
+	Header FileHeader
+	Name   string
+	Data   []byte
+	Offset uint32 // absolute byte offset in the original image
 }
 
 func (f *File) IsHardLink() bool {
@@ -157,6 +168,9 @@ func (f *File) FileMode() int {
 }
 
 func (f *File) Decode(buf []byte) (n int, err error) {
+	if len(buf) < 16 {
+		return 0, fmt.Errorf("romfs: file header too short")
+	}
 	hdrBuf := buf
 
 	NextFileHeader := binary.BigEndian.Uint32(buf)
@@ -181,19 +195,13 @@ func (f *File) Decode(buf []byte) (n int, err error) {
 	binary.BigEndian.PutUint32(sumBuf[12:], 0)
 
 	if utils.ChecksumAFFS(sumBuf) != f.Header.Sum {
-		return len(hdrBuf) - len(buf), fmt.Errorf("invalid sum")
+		return len(hdrBuf) - len(buf), fmt.Errorf("invalid sum for %s", utils.CString(f.Header.Name))
 	}
 
 	if (f.IsFile() || f.IsSoftLink()) && f.Header.Size > 0 {
 		f.Data = slices.Clone(buf[:f.Header.Size])
-		buf = buf[utils.Align(f.Header.Size, 16):]
+		buf = buf[utils.Align(int(f.Header.Size), 16):]
 	}
 
 	return len(hdrBuf) - len(buf), nil
-}
-
-type File struct {
-	Header FileHeader
-	Name   string
-	Data   []byte
 }
