@@ -25,7 +25,7 @@ var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("SCRN")),
 	[4]byte([]byte("RFM ")),
 	[4]byte([]byte("ELSW")),
-	[4]byte([]byte("MAIN")),
+	ModuleNameMAIN,
 	[4]byte([]byte("TPNL")),
 	[4]byte([]byte("GSTR")),
 	[4]byte([]byte("LCD ")),
@@ -36,10 +36,12 @@ var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("VGD ")),
 	[4]byte([]byte("HDD1")),
 	[4]byte([]byte("HDD2")),
+	[4]byte([]byte("IPUC")),
 }
 
 var PanasonicHeader = [12]byte([]byte("PANASONIC\x00\x00\x00"))
 
+// findKey Decrypts a known block section with all CustomKeys to find a matching known plaintext
 func findKey(block [8]byte, pattern []byte) (key crypto.CustomKey, ok bool) {
 	for _, k := range crypto.CustomKeys {
 		testBuf := block
@@ -52,6 +54,7 @@ func findKey(block [8]byte, pattern []byte) (key crypto.CustomKey, ok bool) {
 	return crypto.CustomKey{}, false
 }
 
+// findKey Decrypts an unknown full file with all CustomKeys to find matching 0xFF or 0x00 patterns to find best score
 func findKeySlow(block []byte) (key crypto.CustomKey, ok bool) {
 	offset := -1
 	var bestScore int
@@ -61,6 +64,7 @@ func findKeySlow(block []byte) (key crypto.CustomKey, ok bool) {
 		expanded.Decrypt(testBuf[:])
 		score := bytes.Count(testBuf, []byte{0x00, 0x00, 0x00, 0x00})
 		score += bytes.Count(testBuf, []byte{0xFF, 0xFF, 0xFF, 0xFF})
+		score += bytes.Count(testBuf, PanasonicHeader[:]) * 10
 		if score > bestScore {
 			bestScore = score
 			offset = i
@@ -72,6 +76,7 @@ func findKeySlow(block []byte) (key crypto.CustomKey, ok bool) {
 	return crypto.CustomKeys[offset], true
 }
 
+// findAESKey Decrypts a known block section with all AESKeys to find a matching known plaintext
 func findAESKey(block []byte, pattern []byte) (key crypto.AESKey, ok bool) {
 	for _, k := range crypto.AESKeys {
 		testBuf := bytes.Clone(block)
@@ -232,7 +237,8 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 		}
 		mod.Header.Size = uint32(len(mod.Data))
 		mod.Header.Offset = offset
-		offset = utils.Align(offset+mod.Header.Size, alignSize)
+		// add extra 16 bytes in case of unalignment
+		offset = utils.Align(offset+mod.Header.Size+(mod.Header.Size%16), alignSize)
 	}
 
 	w := utils.NewWriteSeeker()
@@ -305,8 +311,15 @@ func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *cr
 
 	m.Header.DataSum = sumFunc(m.Data)
 
+	data := m.Data
+
 	if m.Header.Name != ModuleNameMAIN && key != nil {
-		key.Encrypt(m.Data)
+		// align to 16 bytes due to fw fuckery
+		if len(data)%16 != 0 {
+			data = slices.Clone(data)
+			data = append(data, make([]byte, 16-(len(data)%16))...)
+		}
+		key.Encrypt(data)
 	}
 
 	var hdrBuf [48]byte
@@ -337,7 +350,7 @@ func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *cr
 
 	defer w.Seek(off, io.SeekStart)
 
-	if _, err = w.Write(m.Data); err != nil {
+	if _, err = w.Write(data); err != nil {
 		return err
 	}
 
@@ -382,14 +395,16 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 
 	defer r.Seek(off, io.SeekStart)
 
-	m.Data = make([]byte, m.Header.Size)
+	m.Data = make([]byte, utils.Align(m.Header.Size, 16))
 	if _, err = io.ReadFull(r, m.Data); err != nil {
 		return err
 	}
 
-	if m.Header.Name != [4]byte([]byte("MAIN")) && key != nil {
+	if m.Header.Name != ModuleNameMAIN && key != nil {
 		key.Decrypt(m.Data)
 	}
+
+	m.Data = m.Data[:m.Header.Size]
 
 	if sum := adler32.Checksum(m.Data); sum != m.Header.DataSum {
 		return fmt.Errorf("%08x != %08x: %w", sum, m.Header.DataSum, ErrInvalidDataChecksum)

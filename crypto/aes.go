@@ -6,9 +6,8 @@ import (
 )
 
 type AESKey struct {
-	Key [16]byte
-	IV  [16]byte
-	// Custom Key result of two xored inputs
+	Key               [16]byte
+	IV                [16]byte
 	Custom            CustomKey
 	ExpandedCustomKey ExpandedCustomKey
 }
