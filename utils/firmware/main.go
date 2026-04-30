@@ -133,7 +133,9 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 				return errors.New("unknown compression type")
 			}
 
-			padded := len(compressed)
+			// align to minimum known supported decryption
+			padded := max(len(compressed), out.encryptedSize()-64)
+
 			if padded%8 != 0 {
 				padded += 8 - padded%8
 			}
@@ -161,6 +163,7 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 				Child:        nil,
 			}
 
+			// encode and encrypt to calculate checksums
 			outBuf, err := segment.ToBuffer()
 			if err != nil {
 				return err
@@ -179,6 +182,8 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 				Size:     uint32(len(outBuf)),
 				Checksum: sumFunc(outBuf),
 			}
+
+			// apply unencrypted segments here
 			out.Segments[partNumber] = segment
 			atomic.AddUint32(&out.Header.ListSize, 8)
 
