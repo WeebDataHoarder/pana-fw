@@ -6,9 +6,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"hash/crc32"
 	"io"
 	"path"
-	"strings"
 
 	"github.com/rasky/go-lzo"
 )
@@ -51,7 +51,20 @@ func NewCramFS(buf []byte) (*CramFS, error) {
 		return nil, errors.New("root is not a directory")
 	}
 
-	//TODO: check full CRC
+	if fs.Super.Flags&CRAMFS_FLAG_FSID_VERSION_2 != 0 {
+		imgLen := int(fs.Super.Size)
+		if imgLen > len(buf) {
+			return nil, errors.New("image truncated: declared size exceeds buffer")
+		}
+		const crcOffset = 32 // Magic(4)+Size(4)+Flags(4)+Future(4)+Signature(16)
+		h := crc32.NewIEEE()
+		h.Write(buf[:crcOffset])
+		h.Write([]byte{0, 0, 0, 0}) // zero out the CRC field
+		h.Write(buf[crcOffset+4 : imgLen])
+		if h.Sum32() != fs.Super.FSID.CRC {
+			return nil, fmt.Errorf("CRC mismatch: expected %08x, got %08x", fs.Super.FSID.CRC, h.Sum32())
+		}
+	}
 
 	if (fs.Super.Flags & CRAMFS_FLAG_FSID_VERSION_2) == 0 {
 		//TODO: maybe clean rest?
@@ -103,10 +116,20 @@ func (fs *CramFS) ReadInode(n uint32) (i Inode, err error) {
 		return i, err
 	}
 
+	if len(buf) < InodeSize {
+		return i, io.ErrUnexpectedEOF
+	}
+
 	if err = i.FromBytes(buf); err != nil {
 		return i, err
 	}
-	i.Extra = buf[InodeSize : InodeSize+int(i.NameLen)<<2]
+
+	nameBytes := int(i.NameLen) << 2
+	if len(buf) < InodeSize+nameBytes {
+		return i, io.ErrUnexpectedEOF
+	}
+
+	i.Extra = buf[InodeSize : InodeSize+nameBytes]
 	return i, nil
 }
 
@@ -116,8 +139,12 @@ func (fs *CramFS) UncompressBlock(buf, out []byte) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-		copy(out, dec)
-		return dec, nil
+		if len(dec) > PAGE_SIZE*2 {
+			return nil, errors.New("out is too large")
+		}
+
+		n := copy(out, dec)
+		return out[:n], nil
 	}
 
 	if fs.Zlib != nil {
@@ -137,11 +164,21 @@ func (fs *CramFS) UncompressBlock(buf, out []byte) ([]byte, error) {
 		return nil, err
 	}
 	defer r.Close()
-	var n int
-	if n, err = r.Read(out); err != nil && !errors.Is(err, io.EOF) {
-		return nil, err
+	total := 0
+	for {
+		n, readErr := r.Read(out[total:])
+		total += n
+		if readErr != nil {
+			if errors.Is(readErr, io.EOF) {
+				break
+			}
+			return nil, readErr
+		}
+		if total >= len(out) {
+			break
+		}
 	}
-	return out[:n], nil
+	return out[:total], nil
 }
 
 func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err error) {
@@ -161,6 +198,9 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 	blockBuf, err := fs.Read(blockPtrOffset)
 	if err != nil {
 		return nil, err
+	}
+	if len(blockBuf) < 4 {
+		return nil, io.ErrUnexpectedEOF
 	}
 	blockPtr := binary.LittleEndian.Uint32(blockBuf)
 	if (blockPtr&CRAMFS_BLK_FLAGS) > 0 && (fs.Super.Flags&CRAMFS_FLAG_EXT_BLOCK_POINTERS) == 0 {
@@ -191,6 +231,9 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 			if err != nil {
 				return nil, err
 			}
+			if len(dstBlockBuf) < 2 {
+				return nil, io.ErrUnexpectedEOF
+			}
 			blockLen = uint32(binary.LittleEndian.Uint16(dstBlockBuf))
 			blockStart += 2
 		}
@@ -208,6 +251,9 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 			if err != nil {
 				return nil, err
 			}
+			if len(dstBlockBuf) < 4 {
+				return nil, io.ErrUnexpectedEOF
+			}
 			blockStart = binary.LittleEndian.Uint32(dstBlockBuf)
 		}
 		if blockStart&CRAMFS_BLK_FLAG_DIRECT_PTR > 0 {
@@ -220,6 +266,9 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 				dstBlockBuf, err := fs.Read(blockStart)
 				if err != nil {
 					return nil, err
+				}
+				if len(dstBlockBuf) < 2 {
+					return nil, io.ErrUnexpectedEOF
 				}
 				blockLen = uint32(binary.LittleEndian.Uint16(dstBlockBuf))
 				blockStart += 2 + blockLen
@@ -244,11 +293,17 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 		if err != nil {
 			return nil, fmt.Errorf("error reading uncompressed block at %d: %w", blockStart, err)
 		}
+		if uint32(len(buf)) < blockLen {
+			return nil, fmt.Errorf("error reading uncompressed block at %d: %w", blockStart, io.ErrUnexpectedEOF)
+		}
 		return buf[:blockLen], nil
 	} else {
 		buf, err := fs.Read(blockStart)
 		if err != nil {
 			return nil, fmt.Errorf("error reading compressed block at %d: %w", blockStart, err)
+		}
+		if uint32(len(buf)) < blockLen {
+			return nil, fmt.Errorf("error reading compressed block at %d: %w", blockStart, io.ErrUnexpectedEOF)
 		}
 
 		if fs.DropDecodedData {
@@ -347,11 +402,7 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 				if err != nil {
 					return err
 				}
-				if strings.HasPrefix(dst, "/") {
-					e.Link = path.Join(p, dst)
-				} else {
-					e.Link = dst
-				}
+				e.Link = dst
 			}
 			return nil
 		}()

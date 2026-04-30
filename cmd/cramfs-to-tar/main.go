@@ -5,18 +5,35 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
 )
 
-func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i *cramfs.InodeEntry) (err error) {
-	pathName := i.Name
-
-	if noAbsolute && strings.HasPrefix(pathName, "/") {
-		pathName = pathName[1:]
+func cleanTarPath(name string, isDir, noAbsolute bool) string {
+	p := name
+	if noAbsolute {
+		p = strings.TrimPrefix(p, "/")
+		if p == "" {
+			p = "./"
+		}
 	}
+
+	if isDir && !strings.HasSuffix(p, "/") {
+		p += "/"
+	}
+	return p
+}
+
+func cleanLinkTarget(target string, noAbsolute bool) string {
+	if noAbsolute {
+		return strings.TrimPrefix(target, "/")
+	}
+	return target
+}
+
+func iterateFS(ar *tar.Writer, noAbsolute, noSpecial bool, i *cramfs.InodeEntry) (err error) {
+	pathName := cleanTarPath(i.Name, i.Inode.IsDir(), noAbsolute)
 
 	if i.Inode.IsFile() {
 		fmt.Printf("f %s %04o\n", i.Name, i.Inode.FileMode())
@@ -47,7 +64,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 		fmt.Printf("d %s %04o\n", i.Name, i.Inode.FileMode())
 		if i.Error != nil {
 			fmt.Printf("error reading directory %s: %s\n", i.Name, i.Error)
-			return
+			return nil
 		}
 		err = ar.WriteHeader(&tar.Header{
 			Typeflag: tar.TypeDir,
@@ -61,7 +78,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 		}
 
 		for _, c := range i.Children {
-			err = iterateFS(ar, fs, noAbsolute, noSpecial, &c)
+			err = iterateFS(ar, noAbsolute, noSpecial, &c)
 			if err != nil {
 				return err
 			}
@@ -70,17 +87,10 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 		fmt.Printf("l %s -> %s %04o\n", i.Name, i.Link, i.Inode.FileMode())
 		if i.Error != nil {
 			fmt.Printf("error reading link %s: %s\n", i.Name, i.Error)
-			return
+			return nil
 		}
 
-		linkName := i.Link
-		if noAbsolute && strings.HasPrefix(linkName, "/") {
-			linkName, err = filepath.Rel(filepath.Dir(i.Name), linkName)
-			if err != nil {
-				fmt.Printf("error reading relative link %s: %s\n", i.Name, err)
-				return
-			}
-		}
+		linkName := cleanLinkTarget(i.Link, noAbsolute)
 
 		err = ar.WriteHeader(&tar.Header{
 			Typeflag: tar.TypeSymlink,
@@ -98,7 +108,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 			fmt.Printf("cdev %s %02x:%02x %04o\n", i.Name, int64((i.Inode.Size>>8)&0xFF), int64(i.Inode.Size&0xFF), i.Inode.FileMode())
 			if i.Error != nil {
 				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
-				return
+				return nil
 			}
 
 			err = ar.WriteHeader(&tar.Header{
@@ -117,7 +127,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 			fmt.Printf("bdev %s %02x:%02x %04o\n", i.Name, int64((i.Inode.Size>>8)&0xFF), int64(i.Inode.Size&0xFF), i.Inode.FileMode())
 			if i.Error != nil {
 				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
-				return
+				return nil
 			}
 
 			err = ar.WriteHeader(&tar.Header{
@@ -136,7 +146,7 @@ func iterateFS(ar *tar.Writer, fs *cramfs.CramFS, noAbsolute, noSpecial bool, i 
 			fmt.Printf("fifo %s %04o\n", i.Name, i.Inode.FileMode())
 			if i.Error != nil {
 				fmt.Printf("error reading device %s: %s\n", i.Name, i.Error)
-				return
+				return nil
 			}
 
 			err = ar.WriteHeader(&tar.Header{
@@ -196,7 +206,7 @@ func main() {
 		panic(err)
 	}
 
-	err = iterateFS(ar, fs, *noAbsolute, *noSpecial, &out)
+	err = iterateFS(ar, *noAbsolute, *noSpecial, &out)
 	if err != nil {
 		panic(err)
 	}
