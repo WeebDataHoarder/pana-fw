@@ -46,6 +46,7 @@ See [Flashing via USB drive](#flashing-via-usb-drive) for flashing details.
 | DMR-BRG2020                                                                                                                                                                                                                                                                                                                               | [DL](https://av.jpn.support.panasonic.com/support/bd/download/hdfw/rdr/brg2020.html)            | Japan                                                                  |    Yes    |                 |
 | DMR-BRX2020 DMR-BRX4020 DMR-BRX7020                                                                                                                                                                                                                                                                                                       | [DL](https://av.jpn.support.panasonic.com/support/bd/download/hdfw/rdr/brx7020.html)            | Japan                                                                  |    Yes    |                 |
 | DMR-BWT760GN DMR-PWT560GN DMR-PWT260GN                                                                                                                                                                                                                                                                                                    | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/bwt760/gl.html)         | Australia, New Zealand                                                 |    Yes    |                 |
+| DMR-BWT460GN                                                                                                                                                                                                                                                                                                                              | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/bwt460/gn/index.html)   | Australia, New Zealand                                                 |    Yes    |                 |
 | DMR-BWT850EC                                                                                                                                                                                                                                                                                                                              | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/bwt750/ec.html)         | Spain, France                                                          |    Yes    |                 |
 | DMP-UB900P<br/>DMP-UB900PC<br/>DMP-UB900EG DMP-UB900EB DMP-UB700EG DMP-UB700EB DMP-UB700EF DMP-UB704EG<br/>DMP-UB900GN                                                                                                                                                                                                                    | [DL](https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub900/index.html)       | United States<br/>Canada<br/>Europe/UK<br/>Oceania                     |    Yes    |                 |
 | DMP-UB900 DMP-UB90                                                                                                                                                                                                                                                                                                                        | [DL](https://av.jpn.support.panasonic.com/support/bd/download/pfw/plr/ub900.html)               | Japan                                                                  |    Yes    |                 |
@@ -115,19 +116,35 @@ UPDATE_ZR1_6
 
 ```
   -in string
-        input FRM path (output will be -in + .patch)
+        input FRM, ZIP or EXE path
+  -out string
+        output FRM path (output will be -in + .patched by default)
   -compression string
         compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.
+        
+  -config string
+        repack config ZIP or YAML file path
+        
+  -patch-force
+        patch force flag on MAIN. Might format all.
+  -patch-version
+        patch version with the given -version-offset, useful for forcefully upgrading
+  -repack-force
+        force a repack and compression even if nothing was patched
+  -version-offset uint
+        offset to increase MAIN version with, default +10 (default 10)
+  
+  === Advanced Patching ===
+  
+  -patch-romfs string
+        path to new RomFS to patch into MAIN, known as fma6
+  -romfs-partition int
+        RomFS partition on MAIN data, for patching. 6 = fma6 (default 6)
         
   -patch-cramfs0 string
         path to new CRAMFS #0 to patch into MAIN, known as fma5
   -cramfs0-partition int
         CRAMFS #0 partition on MAIN data, for patching. 5 = fma5 (default 5)
-        
-  -patch-romfs string
-        path to new RomFS to patch into MAIN, known as fma6
-  -romfs-partition int
-        RomFS partition on MAIN data, for patching. 7 = fma7 (default 6)
         
   -patch-cramfs1 string
         path to new CRAMFS #1 to patch into MAIN, known as fma7
@@ -138,20 +155,16 @@ UPDATE_ZR1_6
         path to new binary data to patch into MAIN. Useful for kernel patching on fma4
   -raw-partition int
         raw partition on MAIN data, for patching. 4 = fma4 (default 4)
-        
-  -patch-force
-        patch force flag on MAIN. Might format all.
-  -patch-version
-        patch version with the given -version-offset, useful for forcefully upgrading
-  -repack-force
-        force a repack and compression even if nothing was patched
-  -version-offset uint
-        offset to increase MAIN version with, default +10 (default 10)
 ```
 
 Example (patching custom RomFS and version)
 ```
 go run ./cmd/repack-firmware -in PANA_DVD.FRM -patch-version -patch-romfs fma6.romfs 
+```
+
+Example (patching using config ZIP, forcing flashing regardless of version)
+```
+go run ./cmd/repack-firmware -in "UPDATE_UB420_UB820_UB9000_V1.82.zip" -out "output/PANAEUSB.FRM" -config "cfw-A8640EU-1.82.zip" -patch-force
 ```
 
 ### Verification and safety

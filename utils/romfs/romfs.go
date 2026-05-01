@@ -48,10 +48,7 @@ func (fs *RomFS) Decode(buf []byte) (err error) {
 		fs.VolumeName = slices.Clone(buf[16 : 16+utils.Align(i+1, 16)])
 	}
 
-	sumSize := 512
-	if int(fs.Size) < sumSize {
-		sumSize = int(fs.Size)
-	}
+	sumSize := min(int(fs.Size), 512)
 	sumBuf := slices.Clone(buf[:sumSize])
 	binary.BigEndian.PutUint32(sumBuf[12:], 0)
 	if utils.ChecksumAFFS(sumBuf) != fs.SumFirst512 {

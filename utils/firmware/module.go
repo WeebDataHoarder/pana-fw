@@ -2,6 +2,7 @@ package firmware
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/crypto"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/lzss"
 )
 
 var ModuleNameMAIN = [4]byte([]byte("MAIN"))
@@ -44,6 +46,50 @@ var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("VHS ")),
 }
 
+var excludeCompressionModules = [][4]byte{
+	ModuleNameMAIN,
+}
+
+var excludeEncryptionModules = [][4]byte{
+	// custom handled
+	ModuleNameMAIN,
+	// not encrypted
+	[4]byte([]byte("VGD ")),
+}
+
+var specialHandlerModules = map[[4]byte][2]func(mod *Module, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) error{
+	[4]byte([]byte("DRV1")): {handleDRVRead, handleDRVWrite},
+	[4]byte([]byte("DRV2")): {handleDRVRead, handleDRVWrite},
+}
+
+func handleDRVRead(mod *Module, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
+	if key != nil {
+		const size = LegacyMainSegmentEncryptedSize
+		if len(mod.RawData) < size {
+			return errors.New("encrypted block too small")
+		}
+		//yep, this can overlap
+		key.Decrypt(mod.RawData[:size])
+		key.Decrypt(mod.RawData[len(mod.RawData)-size-48:])
+	}
+
+	return nil
+}
+
+func handleDRVWrite(mod *Module, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
+	if key != nil {
+		const size = LegacyMainSegmentEncryptedSize
+		if len(mod.RawData) < size {
+			return errors.New("encrypted block too small")
+		}
+		//yep, this can overlap
+		key.Encrypt(mod.RawData[len(mod.RawData)-size-48:])
+		key.Encrypt(mod.RawData[:size])
+	}
+
+	return nil
+}
+
 var PanasonicHeader = [12]byte([]byte("PANASONIC\x00\x00\x00"))
 
 // findKey Decrypts a known block section with all CustomKeys to find a matching known plaintext
@@ -63,10 +109,11 @@ func findKey(block [8]byte, pattern []byte) (key crypto.CustomKey, ok bool) {
 func findKeySlow(block []byte) (key crypto.CustomKey, ok bool) {
 	offset := -1
 	var bestScore int
+	block = block[:len(block)-len(block)%8]
 	for i, k := range crypto.CustomKeys {
 		testBuf := slices.Clone(block)
 		expanded := k.Expand()
-		expanded.Decrypt(testBuf[:])
+		expanded.Decrypt(testBuf)
 		score := bytes.Count(testBuf, []byte{0x00, 0x00, 0x00, 0x00})
 		score += bytes.Count(testBuf, []byte{0xFF, 0xFF, 0xFF, 0xFF})
 		score += bytes.Count(testBuf, PanasonicHeader[:]) * 10
@@ -220,9 +267,11 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 				break
 			}
 			m.Entries = append(m.Entries, nil)
-			if slices.Contains(KnownModuleHeaderNames, mod.Header.Name) && mod.Header.OEM == OEMPanasonic {
-				//TODO: handle false positives?
+			isProbablyModule := mod.Header.OEM == OEMPanasonic && mod.Header.CompressionType <= 3 && mod.Header.FormatHDD <= 1 && mod.Header.Unknown3 == [3]byte{}
+			if slices.Contains(KnownModuleHeaderNames, mod.Header.Name) && isProbablyModule {
 				return err
+			} else if isProbablyModule && errors.Is(err, ErrNotModule) {
+				return fmt.Errorf("possible module header %s not properly detected: %#+v: %w", mod.Header.Name, mod.Header, err)
 			}
 			continue
 		}
@@ -240,7 +289,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 		if mod == nil {
 			continue
 		}
-		mod.Header.Size = uint32(len(mod.Data))
+		mod.Header.Size = uint32(len(mod.RawData))
 		mod.Header.Offset = offset
 		// add extra 16 bytes in case of unalignment
 		offset = utils.Align(offset+mod.Header.Size+(mod.Header.Size%16), alignSize)
@@ -300,7 +349,8 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 type Module struct {
 	Header ModuleHeader
 
-	Data []byte
+	RawData      []byte
+	Decompressed []byte
 }
 
 const FileHeaderSize = 0x1800
@@ -312,13 +362,19 @@ var ErrInvalidDataChecksum = errors.New("invalid data checksum")
 var ErrNotModule = errors.New("not a module")
 
 func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
-	m.Header.Size = uint32(len(m.Data))
+	m.Header.Size = uint32(len(m.RawData))
 
-	m.Header.DataSum = sumFunc(m.Data)
+	m.Header.DataSum = sumFunc(m.RawData)
 
-	data := m.Data
+	data := m.RawData
 
-	if m.Header.Name != ModuleNameMAIN && key != nil {
+	if h, ok := specialHandlerModules[m.Header.Name]; ok {
+		if err = h[1](m, sumFunc, key); err != nil {
+			return err
+		}
+	}
+
+	if !slices.Contains(excludeEncryptionModules, m.Header.Name) && key != nil {
 		// align to 16 bytes due to fw fuckery
 		if len(data)%16 != 0 {
 			data = slices.Clone(data)
@@ -362,6 +418,13 @@ func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *cr
 	return nil
 }
 
+func (m *Module) Data() []byte {
+	if m.Decompressed != nil {
+		return m.Decompressed
+	}
+	return m.RawData
+}
+
 func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
 	var hdrBuf [48]byte
 
@@ -400,19 +463,49 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 
 	defer r.Seek(off, io.SeekStart)
 
-	m.Data = make([]byte, utils.Align(m.Header.Size, 16))
-	if _, err = io.ReadFull(r, m.Data); err != nil {
+	m.RawData = make([]byte, utils.Align(m.Header.Size, 16))
+	if _, err = io.ReadFull(r, m.RawData); err != nil {
 		return err
 	}
 
-	if m.Header.Name != ModuleNameMAIN && key != nil {
-		key.Decrypt(m.Data)
+	if !slices.Contains(excludeEncryptionModules, m.Header.Name) && key != nil {
+		key.Decrypt(m.RawData)
 	}
 
-	m.Data = m.Data[:m.Header.Size]
+	m.RawData = m.RawData[:m.Header.Size]
 
-	if sum := adler32.Checksum(m.Data); sum != m.Header.DataSum {
+	if sum := adler32.Checksum(m.RawData); sum != m.Header.DataSum {
 		return fmt.Errorf("%08x != %08x: %w", sum, m.Header.DataSum, ErrInvalidDataChecksum)
+	}
+
+	if h, ok := specialHandlerModules[m.Header.Name]; ok {
+		return h[0](m, sumFunc, key)
+	}
+
+	if slices.Contains(excludeCompressionModules, m.Header.Name) {
+		// skip decompression
+		return nil
+	}
+
+	switch CompressionType(m.Header.CompressionType) {
+	case CompressionTypeGZIP:
+		gzReader, err := gzip.NewReader(bytes.NewBuffer(m.RawData))
+		if err != nil {
+			return err
+		}
+		defer gzReader.Close()
+		m.Decompressed, err = io.ReadAll(gzReader)
+		if err != nil {
+			return err
+		}
+	case CompressionTypeLZSS:
+		m.Decompressed, err = lzss.Decompress(m.RawData, 0, 1024*1024*32)
+		if err != nil {
+			return err
+		}
+	case CompressionTypeGZIP | CompressionTypeLZSS:
+		//TODO:
+		return nil
 	}
 
 	return nil

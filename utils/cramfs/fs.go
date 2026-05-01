@@ -2,7 +2,6 @@ package cramfs
 
 import (
 	"bytes"
-	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,10 +9,12 @@ import (
 	"io"
 	"path"
 
+	"github.com/klauspost/compress/zlib"
+
 	"github.com/rasky/go-lzo"
 )
 
-type ZlibDecompressor interface {
+type ZlibInterface interface {
 	Decompress(in, out []byte) (int, []byte, error)
 	Close() error
 	Reset() error
@@ -24,12 +25,13 @@ type CramFS struct {
 
 	tmp []byte
 
-	Zlib ZlibDecompressor
+	Zlib ZlibInterface
 
 	DropDecodedData bool
 	UseLZO          bool
 
 	Super Super
+	Tree  *InodeEntry
 }
 
 func NewCramFS(buf []byte) (*CramFS, error) {
@@ -58,9 +60,10 @@ func NewCramFS(buf []byte) (*CramFS, error) {
 		}
 		const crcOffset = 32 // Magic(4)+Size(4)+Flags(4)+Future(4)+Signature(16)
 		h := crc32.NewIEEE()
-		h.Write(buf[:crcOffset])
-		h.Write([]byte{0, 0, 0, 0}) // zero out the CRC field
-		h.Write(buf[crcOffset+4 : imgLen])
+		_, _ = h.Write(buf[:crcOffset])
+		// zero out the CRC field
+		_, _ = h.Write([]byte{0, 0, 0, 0})
+		_, _ = h.Write(buf[crcOffset+4 : imgLen])
 		if h.Sum32() != fs.Super.FSID.CRC {
 			return nil, fmt.Errorf("CRC mismatch: expected %08x, got %08x", fs.Super.FSID.CRC, h.Sum32())
 		}
@@ -142,7 +145,6 @@ func (fs *CramFS) UncompressBlock(buf, out []byte) ([]byte, error) {
 		if len(dec) > PAGE_SIZE*2 {
 			return nil, errors.New("out is too large")
 		}
-
 		n := copy(out, dec)
 		return out[:n], nil
 	}
@@ -283,11 +285,11 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 	}
 
 	if blockLen == 0 {
-		// hole
-		if blockNumber == maxBlock-1 {
+		// return a hole
+		if blockNumber == maxBlock-1 && size%PAGE_SIZE != 0 {
 			return ZeroBuf[:size%PAGE_SIZE], nil
 		}
-		return ZeroBuf, nil
+		return ZeroBuf[:PAGE_SIZE], nil
 	} else if uncompressed {
 		buf, err := fs.Read(blockStart)
 		if err != nil {
@@ -320,6 +322,11 @@ func (fs *CramFS) ReadBlock(offset, blockNumber, size uint32) (b []byte, err err
 
 var ZeroBuf = make([]byte, PAGE_SIZE)
 
+type EncodedBlock struct {
+	Data         []byte
+	Uncompressed bool
+}
+
 type InodeEntry struct {
 	Name          string
 	Inode         Inode
@@ -327,15 +334,62 @@ type InodeEntry struct {
 	Children      []InodeEntry
 	Link          string
 	File          [][]byte
-	Error         error
-	Errors        int
+	// RawBlocks original encoded blocks from source image; nil if modified
+	RawBlocks []EncodedBlock
+	Error     error
+	Errors    int
+}
+
+func (e *InodeEntry) Size() int {
+	return InodeSize + len(e.PaddedBaseName())
+}
+
+func (e *InodeEntry) PaddedBaseName() []byte {
+	return paddedName(e.BaseName())
+}
+
+func (e *InodeEntry) BaseName() string {
+	if n := e.Inode.Name(); n != "" {
+		return n
+	}
+	return path.Base(e.Name)
+}
+
+func (e *InodeEntry) FileDataBlocks() [][]byte {
+	if e.Inode.IsFile() {
+		return e.File
+	}
+	return [][]byte{[]byte(e.Link)}
+}
+
+// SetFileData replaces file content, splitting into PAGE_SIZE blocks,
+// reusing original encoded blocks where the new content matches
+func (e *InodeEntry) SetFileData(data []byte) {
+	oldFile, oldRaw := e.File, e.RawBlocks
+	e.File = nil
+	e.RawBlocks = nil
+	e.Inode.Size = uint32(len(data))
+
+	for i := 0; len(data) > 0; i++ {
+		n := min(len(data), PAGE_SIZE)
+		block := make([]byte, n)
+		copy(block, data[:n])
+		e.File = append(e.File, block)
+
+		if i < len(oldFile) && i < len(oldRaw) && bytes.Equal(block, oldFile[i]) {
+			e.RawBlocks = append(e.RawBlocks, oldRaw[i])
+		} else {
+			e.RawBlocks = append(e.RawBlocks, EncodedBlock{}) // empty Data → needs (re)compression
+		}
+		data = data[n:]
+	}
 }
 
 var errZeroFileName = errors.New("filename length is zero")
 var errNoDir = errors.New("not a directory")
 var errInvalidDir = errors.New("directory inode has zero offset and non-zero size")
 
-func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
+func (fs *CramFS) Directory(p string, i Inode) (out InodeEntry, err error) {
 	if !i.IsDir() {
 		return out, errNoDir
 	}
@@ -353,7 +407,7 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 
 	out = InodeEntry{
 		Name:  p,
-		Inode: *i,
+		Inode: i,
 	}
 
 	var fatalError bool
@@ -371,6 +425,7 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 			newLen := uint32(child.NameLen) << 2
 
 			if newLen == 0 {
+				fatalError = true
 				return errZeroFileName
 			}
 			size := InodeSize + newLen
@@ -378,17 +433,20 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 			offset += size
 
 			if !fs.DropDecodedData {
-				e.Name = path.Join(p, child.Name())
+				e.Name = path.Join(p, e.Inode.Name())
 			}
 
-			if child.IsFile() {
-				outBufs, err := fs.File(&child)
+			if e.Inode.IsFile() {
+				outBufs, err := fs.File(e.Inode)
 				if err != nil {
 					return err
 				}
 				e.File = outBufs
-			} else if child.IsDir() {
-				dirEntry, err := fs.Directory(p, &child)
+				if !fs.DropDecodedData {
+					e.RawBlocks = fs.readFileRawBlocks(e.Inode)
+				}
+			} else if e.Inode.IsDir() {
+				dirEntry, err := fs.Directory(p, e.Inode)
 				if err != nil {
 					return err
 				}
@@ -397,12 +455,14 @@ func (fs *CramFS) Directory(p string, i *Inode) (out InodeEntry, err error) {
 				if !fs.DropDecodedData {
 					e.Children = append(e.Children, dirEntry.Children...)
 				}
-			} else if child.IsLink() && !fs.DropDecodedData {
-				dst, err := fs.Link(&child)
+			} else if e.Inode.IsLink() && !fs.DropDecodedData {
+				dst, err := fs.Link(&e.Inode)
 				if err != nil {
 					return err
 				}
+
 				e.Link = dst
+				e.RawBlocks = fs.readFileRawBlocks(e.Inode)
 			}
 			return nil
 		}()
@@ -429,7 +489,7 @@ var errFileOffZeroSize = errors.New("file inode has zero size and non-zero offse
 var errFileNonBlock = errors.New("error reading file block: non-block size")
 var errFileNonSize = errors.New("error reading file block: non-size size")
 
-func (fs *CramFS) File(i *Inode) (out [][]byte, err error) {
+func (fs *CramFS) File(i Inode) (out [][]byte, err error) {
 	if !i.IsFile() {
 		return nil, errNoFile
 	}
@@ -494,4 +554,75 @@ func (fs *CramFS) Link(i *Inode) (out string, err error) {
 	}
 
 	return string(buf), nil
+}
+
+func (fs *CramFS) readFileRawBlocks(i Inode) []EncodedBlock {
+	if (!i.IsFile() && !i.IsLink()) || i.Size == 0 {
+		return nil
+	}
+	offset := i.Offset << 2
+	if offset == 0 {
+		return nil
+	}
+
+	size := i.Size
+	maxBlock := (size + PAGE_SIZE - 1) / PAGE_SIZE
+	hasExtPointers := fs.Super.Flags&CRAMFS_FLAG_EXT_BLOCK_POINTERS != 0
+
+	// Read all block pointers.
+	ptrs := make([]uint32, maxBlock)
+	for b := range maxBlock {
+		buf, err := fs.Read(offset + b*4)
+		if err != nil || len(buf) < 4 {
+			return nil
+		}
+		ptrs[b] = binary.LittleEndian.Uint32(buf)
+	}
+
+	blocks := make([]EncodedBlock, 0, maxBlock)
+	for b := range maxBlock {
+		ptr := ptrs[b]
+
+		// Bail on direct pointers — too complex to relocate.
+		if hasExtPointers && ptr&CRAMFS_BLK_FLAG_DIRECT_PTR != 0 {
+			return nil
+		}
+
+		uncompressed := hasExtPointers && ptr&CRAMFS_BLK_FLAG_UNCOMPRESSED != 0
+		endOff := ptr & ^uint32(CRAMFS_BLK_FLAGS)
+
+		var startOff uint32
+		if b == 0 {
+			startOff = offset + maxBlock*4
+		} else {
+			prev := ptrs[b-1]
+			if hasExtPointers && prev&CRAMFS_BLK_FLAG_DIRECT_PTR != 0 {
+				return nil
+			}
+			startOff = prev & ^uint32(CRAMFS_BLK_FLAGS)
+		}
+
+		blockLen := endOff - startOff
+		if blockLen == 0 {
+			// Hole — let the encoder handle it.
+			return nil
+		}
+		if blockLen > 2*PAGE_SIZE {
+			return nil
+		}
+
+		raw, err := fs.Read(startOff)
+		if err != nil || uint32(len(raw)) < blockLen {
+			return nil
+		}
+
+		blockData := make([]byte, blockLen)
+		copy(blockData, raw[:blockLen])
+
+		blocks = append(blocks, EncodedBlock{
+			Data:         blockData,
+			Uncompressed: uncompressed,
+		})
+	}
+	return blocks
 }

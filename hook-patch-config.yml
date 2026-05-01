@@ -1,0 +1,36 @@
+# cmd/repack-firmware config file for DP-UB9000/UB9004/UB820/UB824/UB420/UB424 1.82/1.84/1.85
+# https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/index.html
+
+# Applies USB startup hook.
+# It will try to load the second partition from the first loaded USB device
+# Mounted under /mnt/usb
+# Supported romfs/cramfs/ext2/ext3 partitions
+# Then /mnt/usb/entrypoint will get executed, place your initialization script or other stuff here
+
+romfs:
+  - path: /target/hook.sh
+    action: add
+    args:
+      executable: true
+    content: |2
+      #!/usr/bin/sash
+
+      -mkdir /mnt/usb
+      /sbin/mount -t romfs /dev/sda2 /mnt/usb
+      /sbin/mount -t cramfs /dev/sda2 /mnt/usb
+      /sbin/mount -t ext3 /dev/sda2 /mnt/usb
+      /sbin/mount -t ext2 /dev/sda2 /mnt/usb
+      exec /mnt/usb/entrypoint
+  - path: /target/startrc
+    action: patch
+    content: |2
+      --- /target/startrc
+      +++ /target/startrc
+      @@ -100,6 +100,7 @@
+       /usr/dtvrec/bin/apl_dispsrv &
+       /usr/dtvrec/bin/ntfx_create_files &
+       /usr/local/bin/shmcollect&
+      +/usr/target/hook.sh&
+       mkdir /nv/DLCfile_DIGA
+       /usr/dtvrec/bin/ipcthttpd &
+       exec /usr/dtvrec/bin/apl_mgr -d

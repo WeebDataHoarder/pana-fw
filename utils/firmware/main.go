@@ -2,7 +2,6 @@ package firmware
 
 import (
 	"bytes"
-	"compress/gzip"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -10,6 +9,8 @@ import (
 	"math/bits"
 	"sync/atomic"
 	"time"
+
+	"github.com/klauspost/compress/gzip"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/crypto"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
