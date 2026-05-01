@@ -124,7 +124,7 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 				}
 			case CompressionTypeLZSS:
 				if err := func() (err error) {
-					compressed, err = lzss.Compress(part, false)
+					compressed, err = lzss.Compress(part, true)
 					return err
 				}(); err != nil {
 					return err
