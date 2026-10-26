@@ -103,7 +103,7 @@ func main() {
 				for {
 					h, err := rarFile.Next()
 					if err == io.EOF {
-						return
+						break
 					}
 					if err != nil {
 						panic(err)
@@ -172,6 +172,7 @@ func main() {
 	}
 
 	var reachedMAIN bool
+	var mainData []byte
 	// do changes, patches
 	for _, mod := range fw.Entries {
 		if mod == nil {
@@ -540,6 +541,7 @@ func main() {
 				}
 				mod.Header.CompressionType = uint8(compressionType)
 			}
+			mainData = data
 
 		} else {
 			patched := *repackForce
@@ -619,6 +621,26 @@ func main() {
 	buf, err = fw.ToBuffer()
 	if err != nil {
 		panic(err)
+	}
+
+	// sanity: output data check
+	{
+		var check firmware.ModuleEntries
+		if err = check.FromBuffer(slices.Clone(buf)); err != nil {
+			panic(fmt.Errorf("MAIN VERIFY: %w", err))
+		}
+		for _, mod := range check.Entries {
+			if mod == nil || mod.Header.Name != firmware.ModuleNameMAIN {
+				continue
+			}
+			var ml firmware.MainList
+			if err = ml.FromReader(bytes.NewReader(mod.Data()), check.Sum, check.ExpandedKey); err != nil {
+				panic(fmt.Errorf("MAIN verify: %w", err))
+			}
+			if !bytes.Equal(ml.Data, mainData) {
+				panic("MAIN verify: data mismatch")
+			}
+		}
 	}
 
 	if *outPath == "" {
