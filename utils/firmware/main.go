@@ -55,13 +55,22 @@ type MainList struct {
 	Data     []byte
 }
 
-func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey, targetSegmentSize uint32, compressionType CompressionType) (*MainList, error) {
+func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey, targetSegmentSize uint32, compressionType CompressionType, template *MainList) (*MainList, error) {
 	if bits.OnesCount32(uint32(compressionType)) != 1 {
 		return nil, errors.New("compression type is not supported")
 	}
 
 	var out MainList
 	out.Header.Unknown1 = 1
+
+	unknown := [4]byte([]byte("DRV "))
+	var unknown2 [4]byte
+	if template != nil && len(template.Segments) > 0 {
+		out.Header.Unknown1 = template.Header.Unknown1
+		unknown = template.Segments[0].Header.Unknown
+		unknown2 = template.Segments[0].Header.Unknown2
+	}
+
 	out.Header.ListSize = 20
 	out.Header.DecompressedSegmentSize = targetSegmentSize
 	out.Header.CompressionType = compressionType
@@ -145,7 +154,7 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 				Header: CompressedFileHeader{
 					Magic: [8]byte([]byte(CompressedFileHeaderMagic)),
 					// Doesn't seem used, TODO: is this magic different elsewhere?
-					Unknown:            [4]byte([]byte("DRV ")),
+					Unknown:            unknown,
 					CompressedFlag:     1,
 					CompressionType:    uint16(compressionType),
 					DestinationSize:    uint32(len(part)),
@@ -154,7 +163,7 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 					//TODO??? both source and destination address are overwritten by flasher before usage
 					SourceAddress: 0,
 					FooterOffset:  64 + uint32(padded),
-					Unknown2:      [4]byte{},
+					Unknown2:      unknown2,
 					Checksum:      sumFunc(cksumBuf),
 					ChecksumSkip:  checksumSkip,
 					Unused:        [16]byte{},

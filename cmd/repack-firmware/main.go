@@ -186,13 +186,17 @@ func main() {
 			reachedMAIN = true
 
 			if *patchVersion && *increaseVersion > 0 {
-				ver, err := strconv.Atoi(utils.CString(mod.Header.Version[:]))
+				verStr := utils.CString(mod.Header.Version[:])
+				ver, err := strconv.Atoi(verStr)
 				if err != nil {
 					panic(err)
 				}
-				fmt.Printf("MAIN: patching version %d -> %d\n", ver, ver+int(*increaseVersion))
-				ver += int(*increaseVersion)
-				mod.Header.Version = [4]byte([]byte(strconv.Itoa(ver)))
+				newVer := fmt.Sprintf("%0*d", len(verStr), ver+int(*increaseVersion))
+				if len(newVer) != len(verStr) {
+					panic(fmt.Errorf("MAIN: patching version %s overflows %s", newVer, verStr))
+				}
+				fmt.Printf("MAIN: patching version %s -> %s\n", verStr, newVer)
+				copy(mod.Header.Version[:], newVer)
 				// copy part of the version onto second header too
 				// todo: copy on the rest of modules as well
 				copy(mod.Header.Unknown2[3:], mod.Header.Version[:3])
@@ -235,6 +239,8 @@ func main() {
 			case "lzss":
 				compressionType = firmware.CompressionTypeLZSS
 			default:
+				panic(fmt.Errorf("unsupported compression %s", *compression))
+			case "":
 				if ml.Header.CompressionType == firmware.CompressionTypeLZSS || ml.Header.CompressionType == firmware.CompressionTypeNone {
 					// default to LZSS if gzip is not used
 					compressionType = firmware.CompressionTypeLZSS
@@ -526,7 +532,7 @@ func main() {
 					fmt.Printf("MAIN: output compression: Unknown\n")
 				}
 
-				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, ml.Header.DecompressedSegmentSize, compressionType)
+				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, ml.Header.DecompressedSegmentSize, compressionType, &ml)
 				if err != nil {
 					panic(err)
 				}
