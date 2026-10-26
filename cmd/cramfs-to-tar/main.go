@@ -201,7 +201,11 @@ func main() {
 	ar := tar.NewWriter(tarF)
 	defer ar.Close()
 
-	out, err := fs.Directory("/", fs.Root())
+	root := fs.Root()
+	if root == nil {
+		panic("invalid root")
+	}
+	out, err := fs.Directory("/", *root)
 	if err != nil {
 		panic(err)
 	}
