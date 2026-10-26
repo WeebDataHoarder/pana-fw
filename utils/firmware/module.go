@@ -258,7 +258,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 		//m.Sum = utils.Checksum32
 	}
 
-	m.Header = buf[:FileHeaderSize]
+	m.Header = slices.Clone(buf[:FileHeaderSize])
 
 	r := bytes.NewReader(buf)
 
@@ -297,8 +297,12 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 		offset = utils.Align(offset+mod.Header.Size+(mod.Header.Size%16), alignSize)
 	}
 
+	var full []byte
 	w := utils.NewWriteSeeker()
-	if err = w.Truncate(int64(offset)); err != nil {
+	if m.AESKey != nil {
+		full = make([]byte, 48+int(offset))
+		w = utils.NewWriteSeekerWithBuffer(full[48:])
+	} else if err = w.Truncate(int64(offset)); err != nil {
 		return nil, err
 	}
 
@@ -347,7 +351,11 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 		binary.LittleEndian.PutUint32(hdrBuf[44:], m.Sum(hdrBuf[:44]))
 		// encrypt header
 		m.AESKey.EncryptCustom(hdrBuf)
-		buf = append(hdrBuf, buf...)
+		if len(buf) != int(offset) {
+			return nil, errors.New("unexpected output size")
+		}
+		copy(full, hdrBuf)
+		buf = full
 	}
 
 	return buf, nil
@@ -381,11 +389,16 @@ func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *cr
 
 	data := m.RawData
 
+	var tail []byte
+
 	if !slices.Contains(excludeEncryptionModules, m.Header.Name) && key != nil {
 		// align to 16 bytes due to fw fuckery
-		if len(data)%16 != 0 {
-			data = slices.Clone(data)
-			data = append(data, make([]byte, 16-(len(data)%16))...)
+		aligned := len(data) &^ 15
+		if aligned != len(data) {
+			tail = make([]byte, 16)
+			copy(tail, data[aligned:])
+			key.Encrypt(tail)
+			data = data[:aligned]
 		}
 		key.Encrypt(data)
 	}
@@ -419,6 +432,9 @@ func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *cr
 	defer w.Seek(off, io.SeekStart)
 
 	if _, err = w.Write(data); err != nil {
+		return err
+	}
+	if _, err = w.Write(tail); err != nil {
 		return err
 	}
 

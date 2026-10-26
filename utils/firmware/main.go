@@ -235,7 +235,11 @@ func (l *MainList) ToBuffer(sumFunc func([]byte) uint32, key *crypto.ExpandedCus
 	}
 
 	binary.LittleEndian.PutUint32(hdrBuf, sumFunc(hdrBuf[4:]))
-	buf = append(buf, hdrBuf...)
+	total := len(hdrBuf)
+	for _, e := range l.Entries {
+		total += int(e.Size)
+	}
+	buf = append(make([]byte, 0, total), hdrBuf...)
 
 	for _, s := range l.Segments {
 		part, err := s.ToBuffer()
@@ -281,6 +285,7 @@ func (l *MainList) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key 
 
 	count := (l.Header.ListSize - 20) / 8
 	hdrBuf = hdrBuf[20:]
+	l.Data = make([]byte, 0, int(count)*int(l.Header.DecompressedSegmentSize))
 
 	for range count {
 		var e MainListEntry
@@ -310,8 +315,13 @@ func (l *MainList) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key 
 			return fmt.Errorf("could not decompress file: %w", err)
 		}
 
-		l.Segments = append(l.Segments, f)
 		l.Data = append(l.Data, f.InnerData()...)
+		// only headers are kept
+		for c := &f; c != nil; c = c.Child {
+			c.RawData, c.Decompressed = nil, nil
+		}
+
+		l.Segments = append(l.Segments, f)
 
 		hdrBuf = hdrBuf[8:]
 	}
@@ -338,7 +348,7 @@ func (f *CompressedFile) InnerData() []byte {
 }
 
 func (f *CompressedFile) ToBuffer() (buf []byte, err error) {
-	buf, err = binary.Append(buf, binary.LittleEndian, f.Header)
+	buf, err = binary.Append(make([]byte, 0, f.Header.FooterOffset+uint32(len(CompressedFileFooterMagic))), binary.LittleEndian, f.Header)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"debug/pe"
 	"errors"
 	"flag"
@@ -134,6 +135,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	buf = nil
 
 	var repackConfig *RepackConfig
 	if *repackConfigPath != "" {
@@ -175,7 +177,7 @@ func main() {
 	}
 
 	var reachedMAIN bool
-	var mainData []byte
+	var mainSum [sha256.Size]byte
 	// do changes, patches
 	for _, mod := range fw.Entries {
 		if mod == nil {
@@ -253,7 +255,7 @@ func main() {
 				}
 			}
 
-			data := slices.Clone(ml.Data)
+			data := ml.Data
 			patched := *repackForce
 
 			parts, err := firmware.SplitPartitions(data, firmware.MainPartitionSplitCharacter)
@@ -533,6 +535,7 @@ func main() {
 
 			if patched {
 				fmt.Printf("MAIN: repacking segments...\n")
+				mod.RawData = nil
 				switch compressionType {
 				case firmware.CompressionTypeNone:
 					fmt.Printf("MAIN: output compression: None\n")
@@ -561,7 +564,7 @@ func main() {
 				}
 				mod.Header.CompressionType = uint8(compressionType)
 			}
-			mainData = data
+			mainSum = sha256.Sum256(data)
 
 		} else {
 			patched := *repackForce
@@ -640,10 +643,10 @@ func main() {
 		}
 	}
 
-	expected := make([][]byte, len(fw.Entries))
+	expectedSum := make([][sha256.Size]byte, len(fw.Entries))
 	for i, mod := range fw.Entries {
 		if mod != nil {
-			expected[i] = slices.Clone(mod.Data())
+			expectedSum[i] = sha256.Sum256(mod.Data())
 		}
 	}
 
@@ -653,31 +656,7 @@ func main() {
 		panic(err)
 	}
 
-	// sanity: output data check
-	{
-		var check firmware.ModuleEntries
-		if err = check.FromBuffer(slices.Clone(buf)); err != nil {
-			panic(fmt.Errorf("MAIN VERIFY: %w", err))
-		}
-		for i, mod := range check.Entries {
-			if mod == nil {
-				continue
-			}
-			if mod.Header.Name != firmware.ModuleNameMAIN {
-				if i >= len(expected) || !bytes.Equal(mod.Data(), expected[i]) {
-					panic(fmt.Errorf("module %s verify: data mismatch", mod.Header.Name[:]))
-				}
-				continue
-			}
-			var ml firmware.MainList
-			if err = ml.FromReader(bytes.NewReader(mod.Data()), check.Sum, check.ExpandedKey); err != nil {
-				panic(fmt.Errorf("MAIN verify: %w", err))
-			}
-			if !bytes.Equal(ml.Data, mainData) {
-				panic("MAIN verify: data mismatch")
-			}
-		}
-	}
+	fw = firmware.ModuleEntries{}
 
 	if *outPath == "" {
 		*outPath = *inPath + ".patched"
@@ -687,4 +666,37 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	// sanity: output data check
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				_ = os.Remove(*outPath)
+				panic(r)
+			}
+		}()
+
+		var check firmware.ModuleEntries
+		if err = check.FromBuffer(buf); err != nil {
+			panic(fmt.Errorf("MAIN verify: %w", err))
+		}
+		for i, mod := range check.Entries {
+			if mod == nil {
+				continue
+			}
+			if mod.Header.Name != firmware.ModuleNameMAIN {
+				if i >= len(expectedSum) || sha256.Sum256(mod.Data()) != expectedSum[i] {
+					panic(fmt.Errorf("module %s verify: data mismatch", mod.Header.Name[:]))
+				}
+				continue
+			}
+			var ml firmware.MainList
+			if err = ml.FromReader(bytes.NewReader(mod.Data()), check.Sum, check.ExpandedKey); err != nil {
+				panic(fmt.Errorf("MAIN verify: %w", err))
+			}
+			if sha256.Sum256(ml.Data) != mainSum {
+				panic("MAIN verify: data mismatch")
+			}
+		}
+	}()
 }

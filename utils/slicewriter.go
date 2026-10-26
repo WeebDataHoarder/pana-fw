@@ -19,6 +19,10 @@ type WriteSeeker struct {
 	off     int64
 }
 
+func NewWriteSeekerWithBuffer(buf []byte) *WriteSeeker {
+	return &WriteSeeker{payload: buf}
+}
+
 func NewWriteSeeker() *WriteSeeker {
 	return &WriteSeeker{}
 }
