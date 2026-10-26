@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -30,7 +31,7 @@ func main() {
 	compression := flag.String("compression", "", "compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.")
 	increaseVersion := flag.Uint("version-offset", 10, "offset to increase MAIN version with, default +10")
 	patchVersion := flag.Bool("patch-version", false, "patch version with the given -version-offset, useful for forcefully upgrading")
-	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Might format all.")
+	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Update is applied regardless of version")
 	repackForce := flag.Bool("repack-force", false, "force a repack and compression even if nothing was patched")
 
 	patchRaw := flag.String("patch-raw", "", "path to new binary data to patch into MAIN. Useful for kernel patching on fma4")
@@ -59,22 +60,24 @@ func main() {
 		panic(err)
 	}
 
-	firmwareNames := []string{"PANAEUSB.FRM", "PANA_DVD.FRM", "PANA_ESD.FRM"}
+	firmwareNames := []string{"PANAEUSB.FRM", "PANA_USB.FRM", "PANA_DVD.FRM", "PANA_ESD.FRM", "PANA__SD.FRM"}
 
 	if strings.ToLower(filepath.Ext(*inPath)) == ".zip" {
 		// check if ZIP, automatically extract
 		if zipReader, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf))); err == nil {
-			for _, fname := range firmwareNames {
-				f, err := zipReader.Open(fname)
-				if err != nil {
-					continue
+			for _, zf := range zipReader.File {
+				if slices.Contains(firmwareNames, path.Base(zf.Name)) {
+					f, err := zf.Open()
+					if err != nil {
+						continue
+					}
+					buf, err = io.ReadAll(f)
+					if err != nil {
+						panic(err)
+					}
+					fmt.Printf("ZIP: Extracted %s\n", zf.Name)
+					break
 				}
-				buf, err = io.ReadAll(f)
-				if err != nil {
-					panic(err)
-				}
-				fmt.Printf("ZIP: Extracted %s\n", fname)
-				break
 			}
 		} else {
 			panic(err)
@@ -108,7 +111,7 @@ func main() {
 					if err != nil {
 						panic(err)
 					}
-					if slices.Contains(firmwareNames, h.Name) {
+					if slices.Contains(firmwareNames, path.Base(h.Name)) {
 						buf, err = io.ReadAll(rarFile)
 						if err != nil {
 							panic(err)
