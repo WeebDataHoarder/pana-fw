@@ -316,6 +316,11 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 
 	buf = w.Bytes()
 
+	if m.AESKey != nil && m.Offset == 48 {
+		binary.LittleEndian.PutUint32(buf[36:], uint32(len(buf)))
+		binary.LittleEndian.PutUint32(buf[44:], m.Sum(buf[:44]))
+	}
+
 	if m.HeaderEncrypted {
 		m.ExpandedKey.Encrypt(buf[m.Offset:FileHeaderSize])
 	}

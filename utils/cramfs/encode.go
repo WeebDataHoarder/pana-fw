@@ -476,10 +476,11 @@ func (fs *CramFS) Encode() ([]byte, error) {
 	// deduplicate blocks
 	dataOff := make(map[*InodeEntry]uint32)
 	type dedupKey struct {
-		off  uint32
-		mode uint16
-		uid  uint16
-		gid  uint8
+		off    uint32
+		blocks int
+		mode   uint16
+		uid    uint16
+		gid    uint8
 	}
 	srcDedup := make(map[dedupKey]uint32)
 	type contentDedup struct {
@@ -503,7 +504,7 @@ func (fs *CramFS) Encode() ([]byte, error) {
 		}
 
 		if noMod {
-			if existing, ok := srcDedup[dedupKey{e.Inode.Offset, e.Inode.Mode, e.Inode.UserID, e.Inode.GroupID}]; ok {
+			if existing, ok := srcDedup[dedupKey{e.Inode.Offset, len(blocks), e.Inode.Mode, e.Inode.UserID, e.Inode.GroupID}]; ok {
 				dataOff[e] = existing
 				continue
 			}
@@ -524,7 +525,7 @@ func (fs *CramFS) Encode() ([]byte, error) {
 		cur = align4(cur)
 		dataOff[e] = cur
 		if noMod {
-			srcDedup[dedupKey{e.Inode.Offset, e.Inode.Mode, e.Inode.UserID, e.Inode.GroupID}] = cur
+			srcDedup[dedupKey{e.Inode.Offset, len(blocks), e.Inode.Mode, e.Inode.UserID, e.Inode.GroupID}] = cur
 		} else {
 			newDedup = append(newDedup, contentDedup{cur, blocks, e.Inode})
 		}

@@ -2,19 +2,32 @@ package xdelta3
 
 import (
 	"bytes"
+	"errors"
+
+	"github.com/ably/vcdiff-go"
 )
 
 func Decode(data, delta []byte) (out []byte, err error) {
 	// first try
-	if out, err = DecodeVCDiff(data, delta); err == nil {
-		return out, nil
+	if out, err = DecodeVCDiff(data, delta); err != nil {
+		if delta, err = transcodeToVCDiff(delta); err != nil {
+			return nil, err
+		}
+		if out, err = DecodeVCDiff(data, delta); err != nil {
+			return nil, err
+		}
 	}
 
-	delta, err = transcodeToVCDiff(delta)
+	parsed, err := vcdiff.ParseDelta(delta)
 	if err != nil {
 		return nil, err
 	}
-	return DecodeVCDiff(data, delta)
+	for _, w := range parsed.Windows {
+		if !w.HasChecksum {
+			return nil, errors.New("delta has no checksum, cannot be verified")
+		}
+	}
+	return out, nil
 }
 
 func transcodeToVCDiff(in []byte) ([]byte, error) {
