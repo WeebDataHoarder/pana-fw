@@ -340,13 +340,13 @@ func (e *ActionEntry) Apply(opener func(p string) (io.ReadCloser, error), data [
 			return nil, err
 		}
 	case "deflate":
+		opts := zopfli.DefaultOptions()
+		// default opts so it doesn't take that long
+		opts.NumIterations = e.argInt("iterations", 2)
+		opts.BlockSplitting = e.argBool("block-splitting", false)
+		opts.BlockSplittingMax = e.argInt("block-splitting-max", opts.BlockSplittingMax)
 		outBuf := bytes.NewBuffer(nil)
-		w, err := zlib.NewWriterLevel(outBuf, zlib.BestCompression)
-		if err != nil {
-			return nil, err
-		}
-		defer w.Close()
-		if _, err = w.Write(data); err != nil {
+		if err = zopfli.ZlibCompress(&opts, data, outBuf); err != nil {
 			return nil, err
 		}
 		out = outBuf.Bytes()
