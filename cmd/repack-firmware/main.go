@@ -164,7 +164,7 @@ func main() {
 			utils.CString(mod.Header.Unknown2[:]),
 			utils.CString(mod.Header.Model[:]),
 			mod.Header.Offset, mod.Header.Size, len(mod.Data()),
-			mod.Header.FormatHDD,
+			mod.Header.FormatFlag,
 			mod.Header.CompressionType,
 		)
 	}
@@ -209,7 +209,7 @@ func main() {
 			}
 
 			if *patchForce {
-				mod.Header.FormatHDD = 1
+				mod.Header.FormatFlag = 1
 			}
 
 			var ml firmware.MainList
@@ -587,7 +587,7 @@ func main() {
 			}
 
 			if *patchFormatHDD && mod.Header.Name == firmware.ModuleNamePROG {
-				mod.Header.FormatHDD = 1
+				mod.Header.FormatFlag = 1
 				patched = true
 			}
 

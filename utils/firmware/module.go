@@ -270,7 +270,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 				break
 			}
 			m.Entries = append(m.Entries, nil)
-			isProbablyModule := mod.Header.OEM == OEMPanasonic && mod.Header.CompressionType <= 3 && mod.Header.FormatHDD <= 1 && mod.Header.Unknown3 == [3]byte{}
+			isProbablyModule := mod.Header.OEM == OEMPanasonic && mod.Header.CompressionType <= 3 && mod.Header.FormatFlag <= 1 && mod.Header.Unknown3 == [3]byte{}
 			if slices.Contains(KnownModuleHeaderNames, mod.Header.Name) && isProbablyModule {
 				return err
 			} else if isProbablyModule && errors.Is(err, ErrNotModule) {
@@ -547,8 +547,10 @@ type ModuleHeader struct {
 	Model [8]byte
 	// OEM Device OEM ID, 0x4D = M for Panasonic
 	OEM byte
-	// FormatHDD If not 0, format HDD, and force update of module
-	FormatHDD byte
+	// FormatFlag Depends on module:
+	// PROG: Schedule HDD Format
+	// MAIN: Force update regardless of version
+	FormatFlag byte
 	// Unknown2 Some sort of ID, purpose unknown (last 3 of the ID seems to be the main firm version)
 	Unknown2 [6]byte
 	// Size Module data size
