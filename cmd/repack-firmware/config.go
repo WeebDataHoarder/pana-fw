@@ -27,6 +27,7 @@ import (
 	"github.com/goccy/go-yaml"
 	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/zip"
+	"github.com/klauspost/compress/zlib"
 	"golang.org/x/image/draw"
 
 	_ "image/gif"
@@ -117,6 +118,8 @@ func (e *FilePatchEntry) Apply(opener func(p string) (io.ReadCloser, error), dat
 	}
 
 	switch e.Action {
+	case "chmod":
+		// nop for convenience
 	case "replace", "add":
 		if contentBuf == nil {
 			return nil, fmt.Errorf("missing file or hex content arg")
@@ -326,6 +329,28 @@ func (e *ActionEntry) Apply(opener func(p string) (io.ReadCloser, error), data [
 		}
 		out = outBuf.Bytes()
 
+	case "inflate":
+		r, err := zlib.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, err
+		}
+		defer r.Close()
+		out, err = io.ReadAll(r)
+		if err != nil {
+			return nil, err
+		}
+	case "deflate":
+		outBuf := bytes.NewBuffer(nil)
+		w, err := zlib.NewWriterLevel(outBuf, zlib.BestCompression)
+		if err != nil {
+			return nil, err
+		}
+		defer w.Close()
+		if _, err = w.Write(data); err != nil {
+			return nil, err
+		}
+		out = outBuf.Bytes()
+
 	case "replace":
 		if pathStr := e.argString("file", ""); pathStr != "" {
 			f, err := opener(pathStr)
@@ -434,10 +459,10 @@ var ErrNoChanges = errors.New("no changes")
 
 func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) error {
 	var changed bool
-	for _, e := range m {
+	for i, e := range m {
 		fe := fs.FindEntry(e.Path)
 
-		fmt.Printf("cramfs: %s %q\n", e.Action, e.Path)
+		fmt.Printf("cramfs: #%d %s %q\n", i+1, e.Action, e.Path)
 
 		mode := uint16(e.argInt("mode", 0755))
 		uid := uint16(e.argInt("uid", 0))
@@ -464,6 +489,20 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 				mode = fe.Inode.Mode
 				uid = fe.Inode.UserID
 				gid = fe.Inode.GroupID
+
+				// specific check to re-add them
+				if _mode := e.argInt("mode", -1); _mode >= 0 && mode != uint16(_mode) {
+					mode = uint16(_mode)
+					changed = true
+				}
+				if _uid := e.argInt("uid", -1); _uid >= 0 && uid != uint16(_uid) {
+					uid = uint16(_uid)
+					changed = true
+				}
+				if _gid := e.argInt("gid", -1); _gid >= 0 && gid != uint8(_gid) {
+					gid = uint8(_gid)
+					changed = true
+				}
 			}
 
 			newData, err := e.Apply(cfg.opener, data)
@@ -474,6 +513,9 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 			if newData != nil && !bytes.Equal(data, newData) {
 				fs.AddFile(e.Path, newData, mode, uid, gid)
 				changed = true
+			} else if changed {
+				// chmod
+				fs.AddFile(e.Path, data, mode, uid, gid)
 			}
 		}
 	}
@@ -486,10 +528,10 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 
 func (cfg *RepackConfig) PatchROMFS(fs *romfs.RomFS, m []FilePatchEntry) error {
 	var changed bool
-	for _, e := range m {
+	for i, e := range m {
 		fe := fs.FindEntry(e.Path)
 
-		fmt.Printf("romfs: %s %q\n", e.Action, e.Path)
+		fmt.Printf("romfs: #%d %s %q\n", i+1, e.Action, e.Path)
 
 		switch e.Action {
 		case "delete":
@@ -528,7 +570,8 @@ func (cfg *RepackConfig) PatchROMFS(fs *romfs.RomFS, m []FilePatchEntry) error {
 }
 
 func (cfg *RepackConfig) PatchData(entries []ActionEntry, data []byte) ([]byte, error) {
-	for _, e := range entries {
+	for i, e := range entries {
+		fmt.Printf("raw: #%d %s @%d\n", i+1, e.Action, e.Offset)
 		newData, err := e.Apply(cfg.opener, data)
 		if err != nil {
 			return nil, err
@@ -590,6 +633,7 @@ func ParseRepackConfig(filePath string) (*RepackConfig, error) {
 
 	base := path.Dir(filePath)
 	cfg.opener = func(pathStr string) (io.ReadCloser, error) {
+		// this can use absolute/relative filepaths outside of the config location, intended
 		if !filepath.IsAbs(pathStr) {
 			return os.Open(path.Join(base, pathStr))
 		} else {
