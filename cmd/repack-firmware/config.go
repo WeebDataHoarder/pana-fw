@@ -454,9 +454,11 @@ func (cfg *RepackConfig) PatchModule(mod *firmware.Module, data []byte) ([]byte,
 		return nil, nil
 	}
 	name := utils.CString(mod.Header.Name[:])
-	entries, ok := cfg.Modules[name]
+	entries, ok := cfg.Modules[name+"@"+utils.CString(mod.Header.Version[:])]
 	if !ok {
-		return nil, nil
+		if entries, ok = cfg.Modules[name]; !ok {
+			return nil, nil
+		}
 	}
 
 	return cfg.PatchData(entries, data)
