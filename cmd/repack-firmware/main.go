@@ -2,15 +2,20 @@ package main
 
 import (
 	"bytes"
+	"debug/pe"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/klauspost/compress/gzip"
+	"github.com/klauspost/compress/zip"
+	"github.com/nwaples/rardecode/v2"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
@@ -20,7 +25,7 @@ import (
 )
 
 func main() {
-	inPath := flag.String("in", "", "input FRM path")
+	inPath := flag.String("in", "", "input FRM, ZIP or EXE path")
 	outPath := flag.String("out", "", "output FRM path")
 	compression := flag.String("compression", "", "compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.")
 	increaseVersion := flag.Uint("version-offset", 10, "offset to increase MAIN version with, default +10")
@@ -52,6 +57,73 @@ func main() {
 	buf, err := os.ReadFile(*inPath)
 	if err != nil {
 		panic(err)
+	}
+
+	firmwareNames := []string{"PANAEUSB.FRM", "PANA_DVD.FRM", "PANA_ESD.FRM"}
+
+	if strings.ToLower(filepath.Ext(*inPath)) == ".zip" {
+		// check if ZIP, automatically extract
+		if zipReader, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf))); err == nil {
+			for _, fname := range firmwareNames {
+				f, err := zipReader.Open(fname)
+				if err != nil {
+					continue
+				}
+				buf, err = io.ReadAll(f)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Printf("ZIP: Extracted %s\n", fname)
+				break
+			}
+		} else {
+			panic(err)
+		}
+	} else if strings.ToLower(filepath.Ext(*inPath)) == ".exe" {
+		// check if EXE SFX RAR, automatically extract
+		if peFile, err := pe.NewFile(bytes.NewReader(buf)); err == nil {
+			var start, end int64 = 0, int64(len(buf))
+			for _, s := range peFile.Sections {
+				if e := int64(s.Offset) + int64(s.Size); e > start {
+					start = e
+				}
+			}
+			switch oh := peFile.OptionalHeader.(type) {
+			case *pe.OptionalHeader32:
+				if d := oh.DataDirectory[4]; d.VirtualAddress != 0 && d.Size != 0 {
+					end = int64(d.VirtualAddress)
+				}
+			case *pe.OptionalHeader64:
+				if d := oh.DataDirectory[4]; d.VirtualAddress != 0 && d.Size != 0 {
+					end = int64(d.VirtualAddress)
+				}
+			}
+
+			if rarFile, err := rardecode.NewReader(bytes.NewReader(buf[start:end])); err == nil {
+				for {
+					h, err := rarFile.Next()
+					if err == io.EOF {
+						return
+					}
+					if err != nil {
+						panic(err)
+					}
+					if slices.Contains(firmwareNames, h.Name) {
+						buf, err = io.ReadAll(rarFile)
+						if err != nil {
+							panic(err)
+						}
+						fmt.Printf("SFX RAR: Extracted %s\n", h.Name)
+						break
+					}
+				}
+			} else {
+				panic(err)
+			}
+
+		} else {
+			panic(err)
+		}
 	}
 
 	var fw firmware.ModuleEntries
@@ -440,6 +512,19 @@ func main() {
 
 			if patched {
 				fmt.Printf("MAIN: repacking segments...\n")
+				switch compressionType {
+				case firmware.CompressionTypeNone:
+					fmt.Printf("MAIN: output compression: None\n")
+				case firmware.CompressionTypeLZSS:
+					fmt.Printf("MAIN: output compression: LZSS\n")
+				case firmware.CompressionTypeGZIP:
+					fmt.Printf("MAIN: output compression: GZIP\n")
+				case firmware.CompressionTypeGZIP | firmware.CompressionTypeLZSS:
+					fmt.Printf("MAIN: output compression: GZIP+LZSS\n")
+				default:
+					fmt.Printf("MAIN: output compression: Unknown\n")
+				}
+
 				newMl, err := firmware.NewMainListWithCompression(data, fw.Sum, fw.ExpandedKey, ml.Header.DecompressedSegmentSize, compressionType)
 				if err != nil {
 					panic(err)
