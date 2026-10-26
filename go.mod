@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	git.gammaspectra.live/WeebDataHoarder/go-inthex v0.0.0-20260219194340-56b84313b3ff
-	git.gammaspectra.live/WeebDataHoarder/go-zopfli v0.0.0-20260522010654-f1864dc03768
+	git.gammaspectra.live/WeebDataHoarder/go-zopfli v0.0.0-20261026113425-1899aa33742a
 	github.com/4kills/go-zlib v1.2.0
 	github.com/ably/vcdiff-go v0.0.2
 	github.com/bluekeyes/go-gitdiff v0.9.0

@@ -3,6 +3,7 @@ package cramfs
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"hash/crc32"
 	"path"
@@ -108,6 +109,9 @@ func (fs *CramFS) ReadTree() error {
 	if err != nil {
 		return err
 	}
+	if tree.Errors > 0 {
+		return errors.New("some entries failed to decode")
+	}
 	fs.Tree = &tree
 	return nil
 }
@@ -166,7 +170,7 @@ func (fs *CramFS) AddFile(filePath string, data []byte, mode, uid uint16, gid ui
 	for i := range parent.Children {
 		if parent.Children[i].BaseName() == name {
 			e := &parent.Children[i]
-			e.Inode.Mode = 0100000 | (mode & 0777)
+			e.Inode.Mode = 0100000 | (mode & 07777)
 			e.Inode.UserID = uid
 			e.Inode.GroupID = gid
 			e.SetFileData(data)
@@ -176,7 +180,7 @@ func (fs *CramFS) AddFile(filePath string, data []byte, mode, uid uint16, gid ui
 	e := InodeEntry{
 		Name: filePath,
 		Inode: Inode{
-			Mode:    0100000 | (mode & 0777),
+			Mode:    0100000 | (mode & 07777),
 			UserID:  uid,
 			GroupID: gid,
 		},
@@ -194,7 +198,7 @@ func (fs *CramFS) AddDir(dirPath string, mode, uid uint16, gid uint8) {
 	fs.ensureDir(path.Dir(dirPath))
 
 	if e := findEntry(fs.Tree, dirPath); e != nil {
-		e.Inode.Mode = 0040000 | (mode & 0777)
+		e.Inode.Mode = 0040000 | (mode & 07777)
 		e.Inode.UserID = uid
 		e.Inode.GroupID = gid
 		return
@@ -203,7 +207,7 @@ func (fs *CramFS) AddDir(dirPath string, mode, uid uint16, gid uint8) {
 	addOrReplaceInode(parent,
 		path.Base(dirPath), dirPath,
 		Inode{
-			Mode:    0040000 | (mode & 0777),
+			Mode:    0040000 | (mode & 07777),
 			UserID:  uid,
 			GroupID: gid,
 		},
@@ -471,10 +475,17 @@ func (fs *CramFS) Encode() ([]byte, error) {
 
 	// deduplicate blocks
 	dataOff := make(map[*InodeEntry]uint32)
-	srcDedup := make(map[uint32]uint32)
+	type dedupKey struct {
+		off  uint32
+		mode uint16
+		uid  uint16
+		gid  uint8
+	}
+	srcDedup := make(map[dedupKey]uint32)
 	type contentDedup struct {
 		off    uint32
 		blocks []EncodedBlock
+		inode  Inode
 	}
 	var newDedup []contentDedup
 	cur := off
@@ -492,14 +503,14 @@ func (fs *CramFS) Encode() ([]byte, error) {
 		}
 
 		if noMod {
-			if existing, ok := srcDedup[e.Inode.Offset]; ok {
+			if existing, ok := srcDedup[dedupKey{e.Inode.Offset, e.Inode.Mode, e.Inode.UserID, e.Inode.GroupID}]; ok {
 				dataOff[e] = existing
 				continue
 			}
 		} else {
 			found := false
 			for _, de := range newDedup {
-				if equalEncodedBlocks(blocks, de.blocks) {
+				if equalEncodedBlocks(blocks, de.blocks) && de.inode.Mode == e.Inode.Mode && de.inode.UserID == e.Inode.UserID && de.inode.GroupID == e.Inode.GroupID {
 					dataOff[e] = de.off
 					found = true
 					break
@@ -513,9 +524,9 @@ func (fs *CramFS) Encode() ([]byte, error) {
 		cur = align4(cur)
 		dataOff[e] = cur
 		if noMod {
-			srcDedup[e.Inode.Offset] = cur
+			srcDedup[dedupKey{e.Inode.Offset, e.Inode.Mode, e.Inode.UserID, e.Inode.GroupID}] = cur
 		} else {
-			newDedup = append(newDedup, contentDedup{cur, blocks})
+			newDedup = append(newDedup, contentDedup{cur, blocks, e.Inode})
 		}
 
 		dataLen := uint32(0)

@@ -70,7 +70,8 @@ func handleDRVRead(mod *Module, sumFunc func([]byte) uint32, key *crypto.Expande
 		}
 		//yep, this can overlap
 		key.Decrypt(mod.RawData[:size])
-		key.Decrypt(mod.RawData[len(mod.RawData)-size-48:])
+		tail := utils.Align(len(mod.RawData), 8) - size - 48
+		key.Decrypt(mod.RawData[tail : tail+size])
 	}
 
 	return nil
@@ -83,7 +84,8 @@ func handleDRVWrite(mod *Module, sumFunc func([]byte) uint32, key *crypto.Expand
 			return errors.New("encrypted block too small")
 		}
 		//yep, this can overlap
-		key.Encrypt(mod.RawData[len(mod.RawData)-size-48:])
+		tail := utils.Align(len(mod.RawData), 8) - size - 48
+		key.Encrypt(mod.RawData[tail : tail+size])
 		key.Encrypt(mod.RawData[:size])
 	}
 

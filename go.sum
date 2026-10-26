@@ -1,7 +1,7 @@
 git.gammaspectra.live/WeebDataHoarder/go-inthex v0.0.0-20260219194340-56b84313b3ff h1:BogNLEStdv5M2CqbJCdplExTIy46xK/GUQlB+3ZAvB4=
 git.gammaspectra.live/WeebDataHoarder/go-inthex v0.0.0-20260219194340-56b84313b3ff/go.mod h1:zPkCB6I+hILtJy5szK/a99fxJTexkjtrtMipXi+KQtE=
-git.gammaspectra.live/WeebDataHoarder/go-zopfli v0.0.0-20260522010654-f1864dc03768 h1:wSQ8SvrSa6NVIgwlE+gG7lV6/Ss7a8CBXf9enLIxmLo=
-git.gammaspectra.live/WeebDataHoarder/go-zopfli v0.0.0-20260522010654-f1864dc03768/go.mod h1:RTrEJVaCMNrhrTFcnGidUtqXXuD8lpcZRu2xr1feaX0=
+git.gammaspectra.live/WeebDataHoarder/go-zopfli v0.0.0-20261026113425-1899aa33742a h1:97UN2iCYyWuXAiNWFou57AhN2HngoIoi5NVYmF11/nY=
+git.gammaspectra.live/WeebDataHoarder/go-zopfli v0.0.0-20261026113425-1899aa33742a/go.mod h1:RTrEJVaCMNrhrTFcnGidUtqXXuD8lpcZRu2xr1feaX0=
 git.gammaspectra.live/WeebDataHoarder/vcdiff-go v0.0.0-20260502054726-48a7585a8b73 h1:RAw2iNeiEqGF8iIZk5u0NoT6uP/C2+ne9RMvOo8C7qQ=
 git.gammaspectra.live/WeebDataHoarder/vcdiff-go v0.0.0-20260502054726-48a7585a8b73/go.mod h1:StuxDlHA3Rle7OkyMrAyMBf1KNR70MtL+/qUr4D+g7s=
 github.com/4kills/go-zlib v1.2.0 h1:h/OjHfOi0ZGAhotXzFVJK7V97cKNsEqRJVmJo4e8H6A=

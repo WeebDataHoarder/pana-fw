@@ -280,6 +280,7 @@ func main() {
 				}
 				if p.Index == *CRAMFS0Partition && *patchCRAMFS0 != "" {
 					fmt.Printf("MAIN: patching CRAMFS0 at fma%d @ 0x%08x\n", p.Index, p.Offset)
+					var origFlags uint32
 					// sanity: check that a CRAMFS exists at that offset already
 					{
 						fs, err := cramfs.NewCramFS(p.Data)
@@ -292,19 +293,24 @@ func main() {
 						if err != nil || out.Errors > 0 {
 							panic("failed to read filesystem at original offset for patching")
 						}
+						origFlags = fs.Super.Flags
 					}
 
 					patchData, err := os.ReadFile(*patchCRAMFS0)
 					if err != nil {
 						panic(err)
 					}
-					// sanity: check that a RomFS exists at new patch data
+					// sanity: check that a CRAMFS exists at new patch data
 					{
 						fs, err := cramfs.NewCramFS(patchData)
 						if err != nil {
 							panic("failed to decode CRAMFS at patch data")
 						}
 						defer fs.Close()
+						if f := fs.Super.Flags &^ origFlags &^ 0xff; f != 0 {
+							panic("CRAMFS patch uses features not in original image")
+						}
+
 						fs.DropDecodedData = true
 						out, err := fs.Directory("", *fs.Root())
 						if err != nil || out.Errors > 0 {
@@ -358,6 +364,7 @@ func main() {
 				}
 				if p.Index == *CRAMFS1Partition && *patchCRAMFS1 != "" {
 					fmt.Printf("MAIN: patching CRAMFS1 at fma%d @ 0x%08x\n", p.Index, p.Offset)
+					var origFlags uint32
 					// sanity: check that a CRAMFS exists at that offset already
 					{
 						fs, err := cramfs.NewCramFS(p.Data)
@@ -370,6 +377,7 @@ func main() {
 						if err != nil || out.Errors > 0 {
 							panic("failed to read filesystem at original offset for patching")
 						}
+						origFlags = fs.Super.Flags
 					}
 
 					patchData, err := os.ReadFile(*patchCRAMFS1)
@@ -383,6 +391,9 @@ func main() {
 							panic("failed to decode CRAMFS at patch data")
 						}
 						defer fs.Close()
+						if f := fs.Super.Flags &^ origFlags &^ 0xff; f != 0 {
+							panic("CRAMFS patch uses features not in original image")
+						}
 						fs.DropDecodedData = true
 						out, err := fs.Directory("", *fs.Root())
 						if err != nil || out.Errors > 0 {

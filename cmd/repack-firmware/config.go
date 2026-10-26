@@ -481,6 +481,11 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 				changed = true
 			}
 		case "mkdir":
+			if fe != nil {
+				mode = uint16(e.argInt("mode", int(fe.Inode.Mode&07777)))
+				uid = uint16(e.argInt("uid", int(fe.Inode.UserID)))
+				gid = uint8(e.argInt("gid", int(fe.Inode.GroupID)))
+			}
 			fs.AddDir(e.Path, mode, uid, gid)
 			changed = true
 		default:

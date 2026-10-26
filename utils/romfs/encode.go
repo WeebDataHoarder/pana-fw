@@ -2,6 +2,7 @@ package romfs
 
 import (
 	"encoding/binary"
+	"fmt"
 	"path"
 	"slices"
 	"strings"
@@ -21,7 +22,7 @@ func (fs *RomFS) ensureDir(dirPath string) {
 		}
 	}
 	fs.Files = append(fs.Files, File{
-		Header: FileHeader{Mode: 1},
+		Header: FileHeader{Mode: 1 | 8},
 		Name:   dirPath,
 	})
 }
@@ -335,23 +336,29 @@ func collectOffsets(node *encodeNode, m map[uint32]uint32) {
 	}
 }
 
-func fixHardLinks(buf []byte, node *encodeNode, m map[uint32]uint32) {
+func fixHardLinks(buf []byte, node *encodeNode, m map[uint32]uint32) error {
 	for _, c := range node.children {
 		if c.mode&7 == 0 {
-			if newOff, ok := m[c.specInfo]; ok {
-				binary.BigEndian.PutUint32(buf[c.finalOffset+4:], newOff)
-				// recompute checksum
-				hdrEnd := c.finalOffset + c.headerSize
-				binary.BigEndian.PutUint32(buf[c.finalOffset+12:], 0)
-				sum := utils.ChecksumAFFS(buf[c.finalOffset:hdrEnd])
-				binary.BigEndian.PutUint32(buf[c.finalOffset+12:], sum)
+			newOff, ok := m[c.specInfo]
+			if !ok {
+				return fmt.Errorf("romfs: hard link %q target 0x%x was removed", c.name, c.specInfo)
 			}
+			binary.BigEndian.PutUint32(buf[c.finalOffset+4:], newOff)
+			// recompute checksum
+			hdrEnd := c.finalOffset + c.headerSize
+			binary.BigEndian.PutUint32(buf[c.finalOffset+12:], 0)
+			sum := utils.ChecksumAFFS(buf[c.finalOffset:hdrEnd])
+			binary.BigEndian.PutUint32(buf[c.finalOffset+12:], sum)
 		}
 		if c.mode&7 == 1 {
 			// recurse into directories
-			fixHardLinks(buf, c, m)
+			if err := fixHardLinks(buf, c, m); err != nil {
+				return err
+			}
 		}
 	}
+
+	return nil
 }
 
 func (fs *RomFS) Encode() ([]byte, error) {
@@ -412,7 +419,9 @@ func (fs *RomFS) Encode() ([]byte, error) {
 	// fix up hard link offsets
 	origToNew := make(map[uint32]uint32)
 	collectOffsets(root, origToNew)
-	fixHardLinks(buf, root, origToNew)
+	if err := fixHardLinks(buf, root, origToNew); err != nil {
+		return nil, err
+	}
 
 	// checksum
 	binary.BigEndian.PutUint32(buf[12:], 0)
