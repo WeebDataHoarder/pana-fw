@@ -616,7 +616,7 @@ func parseRepackZIP(buf []byte) (*RepackConfig, error) {
 	}
 
 	var cfg RepackConfig
-	if err := yaml.UnmarshalWithOptions(cfgBuf, &cfg, yaml.UseJSONUnmarshaler()); err != nil {
+	if err := yaml.UnmarshalWithOptions(cfgBuf, &cfg, yaml.UseJSONUnmarshaler(), yaml.DisallowUnknownField()); err != nil {
 		return nil, err
 	}
 
@@ -636,7 +636,7 @@ func ParseRepackConfig(filePath string) (*RepackConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := yaml.UnmarshalWithOptions(buf, &cfg, yaml.UseJSONUnmarshaler()); err != nil {
+	if err := yaml.UnmarshalWithOptions(buf, &cfg, yaml.UseJSONUnmarshaler(), yaml.DisallowUnknownField()); err != nil {
 		// try zip file
 		cfg2, err2 := parseRepackZIP(buf)
 		if err2 != nil {

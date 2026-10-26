@@ -124,11 +124,13 @@ UPDATE_ZR1_6
         
   -config string
         repack config ZIP or YAML file path
-        
+  
   -patch-force
-        patch force flag on MAIN. Might format all.
+        patch force flag on MAIN. Update is applied regardless of version
+  -patch-format-hdd
+        patch force flag on PROG. Formats HDD.
   -patch-version
-        patch version with the given -version-offset, useful for forcefully upgrading
+        patch version with the given -version-offset, useful for forcefully upgrading specific versions
   -repack-force
         force a repack and compression even if nothing was patched
   -version-offset uint

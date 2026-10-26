@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"git.gammaspectra.live/WeebDataHoarder/go-zopfli/zopfli"
 	"golang.org/x/sync/errgroup"
@@ -322,7 +323,7 @@ func (fs *CramFS) Encode() ([]byte, error) {
 	flags := fs.Super.Flags
 	// children always start at SuperSize
 	flags &^= CRAMFS_FLAG_SHIFTED_ROOT_OFFSET
-	needExtPtrs := false
+	var needExtPtrs atomic.Bool
 
 	if flags&CRAMFS_FLAG_SORTED_DIRS != 0 {
 		var sortTree func(e *InodeEntry)
@@ -457,7 +458,7 @@ func (fs *CramFS) Encode() ([]byte, error) {
 					}
 				}
 				if eb.Uncompressed {
-					needExtPtrs = true
+					needExtPtrs.Store(true)
 				}
 				blocks = append(blocks, eb)
 			}
@@ -538,7 +539,7 @@ func (fs *CramFS) Encode() ([]byte, error) {
 		totalBlocks += uint32(len(blocks))
 	}
 
-	if needExtPtrs {
+	if needExtPtrs.Load() {
 		flags |= CRAMFS_FLAG_EXT_BLOCK_POINTERS
 	} else {
 		flags &^= CRAMFS_FLAG_EXT_BLOCK_POINTERS

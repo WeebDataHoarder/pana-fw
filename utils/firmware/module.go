@@ -16,6 +16,7 @@ import (
 )
 
 var ModuleNameMAIN = [4]byte([]byte("MAIN"))
+var ModuleNamePROG = [4]byte([]byte("PROG"))
 
 var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("BOOT")),
@@ -33,7 +34,7 @@ var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("LOSD")),
 	ModuleNameMAIN,
 	[4]byte([]byte("MINI")),
-	[4]byte([]byte("PROG")),
+	ModuleNamePROG,
 	[4]byte([]byte("RFM ")),
 	[4]byte([]byte("SCRN")),
 	[4]byte([]byte("SFVU")),

@@ -31,8 +31,9 @@ func main() {
 	outPath := flag.String("out", "", "output FRM path")
 	compression := flag.String("compression", "", "compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.")
 	increaseVersion := flag.Uint("version-offset", 10, "offset to increase MAIN version with, default +10")
-	patchVersion := flag.Bool("patch-version", false, "patch version with the given -version-offset, useful for forcefully upgrading")
+	patchVersion := flag.Bool("patch-version", false, "patch version with the given -version-offset, useful for forcefully upgrading specific versions")
 	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Update is applied regardless of version")
+	patchFormatHDD := flag.Bool("patch-format-hdd", false, "patch force flag on PROG. Formats HDD.")
 	repackForce := flag.Bool("repack-force", false, "force a repack and compression even if nothing was patched")
 
 	patchRaw := flag.String("patch-raw", "", "path to new binary data to patch into MAIN. Useful for kernel patching on fma4")
@@ -583,6 +584,11 @@ func main() {
 					data = newData
 					patched = true
 				}
+			}
+
+			if *patchFormatHDD && mod.Header.Name == firmware.ModuleNamePROG {
+				mod.Header.FormatHDD = 1
+				patched = true
 			}
 
 			if patched {
