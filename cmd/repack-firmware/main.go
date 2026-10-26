@@ -288,7 +288,7 @@ func main() {
 					fmt.Printf("MAIN: patching CRAMFS0 at fma%d @ 0x%08x\n", p.Index, p.Offset)
 					var origFlags uint32
 					// sanity: check that a CRAMFS exists at that offset already
-					{
+					func() {
 						fs, err := cramfs.NewCramFS(p.Data)
 						if err != nil {
 							panic("failed to decode CRAMFS at original offset for patching")
@@ -300,14 +300,14 @@ func main() {
 							panic("failed to read filesystem at original offset for patching")
 						}
 						origFlags = fs.Super.Flags
-					}
+					}()
 
 					patchData, err := os.ReadFile(*patchCRAMFS0)
 					if err != nil {
 						panic(err)
 					}
 					// sanity: check that a CRAMFS exists at new patch data
-					{
+					func() {
 						fs, err := cramfs.NewCramFS(patchData)
 						if err != nil {
 							panic("failed to decode CRAMFS at patch data")
@@ -322,7 +322,7 @@ func main() {
 						if err != nil || out.Errors > 0 {
 							panic("failed to read filesystem at patch data")
 						}
-					}
+					}()
 
 					// initialize
 					for i := range len(p.Data) {
@@ -372,7 +372,7 @@ func main() {
 					fmt.Printf("MAIN: patching CRAMFS1 at fma%d @ 0x%08x\n", p.Index, p.Offset)
 					var origFlags uint32
 					// sanity: check that a CRAMFS exists at that offset already
-					{
+					func() {
 						fs, err := cramfs.NewCramFS(p.Data)
 						if err != nil {
 							panic("failed to decode CRAMFS at original offset for patching")
@@ -384,14 +384,14 @@ func main() {
 							panic("failed to read filesystem at original offset for patching")
 						}
 						origFlags = fs.Super.Flags
-					}
+					}()
 
 					patchData, err := os.ReadFile(*patchCRAMFS1)
 					if err != nil {
 						panic(err)
 					}
 					// sanity: check that a RomFS exists at new patch data
-					{
+					func() {
 						fs, err := cramfs.NewCramFS(patchData)
 						if err != nil {
 							panic("failed to decode CRAMFS at patch data")
@@ -405,7 +405,7 @@ func main() {
 						if err != nil || out.Errors > 0 {
 							panic("failed to read filesystem at patch data")
 						}
-					}
+					}()
 
 					// initialize
 					for i := range len(p.Data) {
@@ -429,38 +429,40 @@ func main() {
 							panic(err)
 						}
 					} else if p.Index == *CRAMFS0Partition && len(repackConfig.CramFS0) > 0 {
-						fs, err := cramfs.NewCramFS(p.Data)
-						if err != nil {
-							panic(err)
-						}
-						if err = fs.ReadTree(); err != nil {
-							panic(err)
-						}
-						defer fs.Close()
+						func() {
+							fs, err := cramfs.NewCramFS(p.Data)
+							if err != nil {
+								panic(err)
+							}
+							if err = fs.ReadTree(); err != nil {
+								panic(err)
+							}
+							defer fs.Close()
 
-						fmt.Printf("cramfs fma%d: patching...\n", p.Index)
-						if err = repackConfig.PatchCRAMFS(fs, repackConfig.CramFS0); err != nil {
-							if !errors.Is(err, ErrNoChanges) {
-								panic(err)
+							fmt.Printf("cramfs fma%d: patching...\n", p.Index)
+							if err = repackConfig.PatchCRAMFS(fs, repackConfig.CramFS0); err != nil {
+								if !errors.Is(err, ErrNoChanges) {
+									panic(err)
+								}
+								fmt.Printf("cramfs fma%d: no changes\n", p.Index)
+							} else {
+								fmt.Printf("cramfs fma%d: packing...\n", p.Index)
+								newData, err = fs.Encode()
+								if err != nil {
+									panic(err)
+								}
+								fs2, err := cramfs.NewCramFS(newData)
+								if err != nil {
+									panic("failed to decode CRAMFS at patch data")
+								}
+								defer fs2.Close()
+								fs2.DropDecodedData = true
+								out, err := fs2.Directory("", *fs2.Root())
+								if err != nil || out.Errors > 0 {
+									panic("failed to read filesystem at patch data")
+								}
 							}
-							fmt.Printf("cramfs fma%d: no changes\n", p.Index)
-						} else {
-							fmt.Printf("cramfs fma%d: packing...\n", p.Index)
-							newData, err = fs.Encode()
-							if err != nil {
-								panic(err)
-							}
-							fs2, err := cramfs.NewCramFS(newData)
-							if err != nil {
-								panic("failed to decode CRAMFS at patch data")
-							}
-							defer fs2.Close()
-							fs2.DropDecodedData = true
-							out, err := fs2.Directory("", *fs2.Root())
-							if err != nil || out.Errors > 0 {
-								panic("failed to read filesystem at patch data")
-							}
-						}
+						}()
 					} else if p.Index == *romfsPartition && len(repackConfig.RomFS) > 0 {
 						var fs romfs.RomFS
 						if err = fs.Decode(p.Data); err != nil {
@@ -485,38 +487,40 @@ func main() {
 							}
 						}
 					} else if p.Index == *CRAMFS1Partition && len(repackConfig.CramFS1) > 0 {
-						fs, err := cramfs.NewCramFS(p.Data)
-						if err != nil {
-							panic(err)
-						}
-						if err = fs.ReadTree(); err != nil {
-							panic(err)
-						}
-						defer fs.Close()
+						func() {
+							fs, err := cramfs.NewCramFS(p.Data)
+							if err != nil {
+								panic(err)
+							}
+							if err = fs.ReadTree(); err != nil {
+								panic(err)
+							}
+							defer fs.Close()
 
-						fmt.Printf("cramfs fma%d: patching...\n", p.Index)
-						if err = repackConfig.PatchCRAMFS(fs, repackConfig.CramFS1); err != nil {
-							if !errors.Is(err, ErrNoChanges) {
-								panic(err)
+							fmt.Printf("cramfs fma%d: patching...\n", p.Index)
+							if err = repackConfig.PatchCRAMFS(fs, repackConfig.CramFS1); err != nil {
+								if !errors.Is(err, ErrNoChanges) {
+									panic(err)
+								}
+								fmt.Printf("cramfs fma%d: no changes\n", p.Index)
+							} else {
+								fmt.Printf("cramfs fma%d: packing...\n", p.Index)
+								newData, err = fs.Encode()
+								if err != nil {
+									panic(err)
+								}
+								fs2, err := cramfs.NewCramFS(newData)
+								if err != nil {
+									panic("failed to decode CRAMFS at patch data")
+								}
+								defer fs2.Close()
+								fs2.DropDecodedData = true
+								out, err := fs2.Directory("", *fs2.Root())
+								if err != nil || out.Errors > 0 {
+									panic("failed to read filesystem at patch data")
+								}
 							}
-							fmt.Printf("cramfs fma%d: no changes\n", p.Index)
-						} else {
-							fmt.Printf("cramfs fma%d: packing...\n", p.Index)
-							newData, err = fs.Encode()
-							if err != nil {
-								panic(err)
-							}
-							fs2, err := cramfs.NewCramFS(newData)
-							if err != nil {
-								panic("failed to decode CRAMFS at patch data")
-							}
-							defer fs2.Close()
-							fs2.DropDecodedData = true
-							out, err := fs2.Directory("", *fs2.Root())
-							if err != nil || out.Errors > 0 {
-								panic("failed to read filesystem at patch data")
-							}
-						}
+						}()
 					}
 
 					if newData != nil && !bytes.Equal(newData, p.Data) {

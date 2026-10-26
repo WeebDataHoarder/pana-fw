@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pana FW Repacker</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script>
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-bs-theme', 'dark');
+        }
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.setAttribute('data-bs-theme', 'light');
+        }
+    </script>
+    <style>
+        #log { height: 22rem; overflow-y: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<main class="container py-4" style="max-width: 52rem">
+    <h1 class="h4">Pana FW Repacker</h1>
+    <p class="text-body-primary mb-3">
+        Patch supported player firmware files for customization.<br/>
+        See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#cmd-repack-firmware" target="_blank">Flashing Documentation</a>, and always read through recent messages on the <a href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/">AVForums Thread</a>.
+    </p>
+    <p class="text-body-secondary small mb-3">
+        Firmware and files are not uploaded and runs locally on the browser using WebAssembly.<br/>
+        Flashing modified firmware can leave the device unbootable and is done at your own risk.<br/>
+        Not all URLs are supported, and the server needs to offer CORS to allow remote download.
+    </p>
+
+    <form id="form" class="row g-3 mb-3">
+        <div class="col-12">
+            <label class="form-label" for="firmware">Original Firmware</label>
+            <input class="form-control" type="file" id="firmware" accept=".frm,.exe,.zip">
+            <input class="form-control mt-2" type="url" id="firmwareUrl" placeholder="or URL" spellcheck="false">
+            <div class="form-text">FRM file, or the ZIP / EXE as downloaded from Panasonic.</div>
+        </div>
+        <div class="col-md-12">
+            <label class="form-label" for="config">Patch configuration</label>
+            <input class="form-control" type="file" id="config" accept=".yml,.yaml,.zip">
+            <input class="form-control mt-2" type="url" id="configUrl" placeholder="or URL" spellcheck="false">
+            <div class="form-text">ZIP or YAML format. Not strictly necessary if using other options or downgrading.</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="compression">Firmware Compression</label>
+            <select class="form-select" id="compression">
+                <option value="gzip">gzip (recommended)</option>
+                <option value="lzss">LZSS (slow)</option>
+                <option value="">same as input</option>
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="outName">Output name</label>
+            <select class="form-select" id="outName">
+                <option value="PANAEUSB.FRM">PANAEUSB.FRM</option>
+                <option value="PANA_DVD.FRM">PANA_DVD.FRM (old)</option>
+                <option value="PANA_ESD.FRM">PANA_ESD.FRM (legacy)</option>
+            </select>
+        </div>
+        <div class="col-12" id="flags">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="patch-force">
+                <label class="form-check-label" for="patch-force">Forced Install</label>
+                <div class="form-text">Player will start the firmware upgrade or downgrade regardless of installed version. Make sure to remove media after install to prevent a loop.</div>
+            </div>
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="patch-format-hdd">
+                <label class="form-check-label" for="patch-format-hdd">Format HDD</label>
+                <div class="form-text">Player will schedule an HDD format after upgrading. This likely only applies to DVR units.</div>
+            </div>
+        </div>
+       <div class="col-12">
+           <h2 class="h6 border-top pt-3 mb-0">Advanced features</h2>
+       </div>
+        <div class="col-6">
+            <label class="form-label" for="extraArgs">Extra options</label>
+            <input class="form-control font-monospace" type="text" id="extraArgs" spellcheck="false" placeholder="-patch-raw /in/fma4.img ...">
+            <div class="form-text">See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#usage" target="_blank">usage documentation</a>.</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="extra">Extra files</label>
+            <input class="form-control" type="file" id="extra" multiple>
+            <div class="form-text">Placed under <code>/in/FILE_NAME</code> within tool.</div>
+        </div>
+        <div class="col-12 d-flex align-items-center gap-3">
+            <button class="btn btn-primary" id="run" type="submit">Start Repacker</button>
+            <span id="status" class="text-body-secondary small"></span>
+            <a id="download" class="btn btn-outline-success ms-auto" hidden></a>
+        </div>
+    </form>
+
+    <pre id="log" class="border rounded bg-body-tertiary p-2 small font-monospace"></pre>
+
+    <footer class="text-body-secondary small border-top pt-2">
+        Built from <a href="@REPO@">@REPO@</a> at commit
+        <a href="@REPO@/commit/@COMMIT@" class="font-monospace">@COMMIT_SHORT@</a> (@COMMIT_DATE@).
+    </footer>
+</main>
+
+<script src="index.js?@COMMIT_SHORT@" type="text/javascript"></script>
+</body>
+</html>
