@@ -571,6 +571,9 @@ func main() {
 					panic(err)
 				}
 				if newData != nil && !bytes.Equal(newData, data) {
+					if mod.Decompressed == nil && mod.Header.CompressionType != uint8(firmware.CompressionTypeNone) {
+						panic(fmt.Errorf("%s: patching compression type %d data is not supported", mod.Header.Name[:], mod.Header.CompressionType))
+					}
 					data = newData
 					patched = true
 				}
@@ -634,6 +637,13 @@ func main() {
 		}
 	}
 
+	expected := make([][]byte, len(fw.Entries))
+	for i, mod := range fw.Entries {
+		if mod != nil {
+			expected[i] = slices.Clone(mod.Data())
+		}
+	}
+
 	// encode
 	buf, err = fw.ToBuffer()
 	if err != nil {
@@ -646,8 +656,14 @@ func main() {
 		if err = check.FromBuffer(slices.Clone(buf)); err != nil {
 			panic(fmt.Errorf("MAIN VERIFY: %w", err))
 		}
-		for _, mod := range check.Entries {
-			if mod == nil || mod.Header.Name != firmware.ModuleNameMAIN {
+		for i, mod := range check.Entries {
+			if mod == nil {
+				continue
+			}
+			if mod.Header.Name != firmware.ModuleNameMAIN {
+				if i >= len(expected) || !bytes.Equal(mod.Data(), expected[i]) {
+					panic(fmt.Errorf("module %s verify: data mismatch", mod.Header.Name[:]))
+				}
 				continue
 			}
 			var ml firmware.MainList

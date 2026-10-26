@@ -204,7 +204,7 @@ func (fs *RomFS) buildTree() *encodeNode {
 				}
 			}
 			if found == nil {
-				found = &encodeNode{name: part, mode: 1}
+				found = &encodeNode{name: part, mode: 1 | 8}
 				parent.children = append(parent.children, found)
 			}
 			parent = found
