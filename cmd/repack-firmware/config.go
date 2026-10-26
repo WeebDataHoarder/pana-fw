@@ -392,10 +392,17 @@ func (e *ActionEntry) Apply(opener func(p string) (io.ReadCloser, error), data [
 		if err != nil {
 			return nil, err
 		}
+	default:
+		return nil, fmt.Errorf("unsupported action %s", e.Action)
 	}
-	if e.Offset != 0 && out != nil && !bytes.Equal(out, data) {
-		// recreate old section
-		out = append(slices.Clone(origData[:e.Offset]), out...)
+	if e.Offset != 0 && out != nil {
+		if !bytes.Equal(out, data) {
+			// recreate old section
+			out = append(slices.Clone(origData[:e.Offset]), out...)
+		} else {
+			// no changes
+			return nil, nil
+		}
 	}
 	return out, nil
 }
