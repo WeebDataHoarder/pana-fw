@@ -364,15 +364,15 @@ var ErrNotModule = errors.New("not a module")
 func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
 	m.Header.Size = uint32(len(m.RawData))
 
-	m.Header.DataSum = sumFunc(m.RawData)
-
-	data := m.RawData
-
 	if h, ok := specialHandlerModules[m.Header.Name]; ok {
 		if err = h[1](m, sumFunc, key); err != nil {
 			return err
 		}
 	}
+
+	m.Header.DataSum = sumFunc(m.RawData)
+
+	data := m.RawData
 
 	if !slices.Contains(excludeEncryptionModules, m.Header.Name) && key != nil {
 		// align to 16 bytes due to fw fuckery
