@@ -598,10 +598,12 @@ func (cfg *RepackConfig) PatchData(entries []ActionEntry, data []byte) ([]byte, 
 	return data, nil
 }
 
+var errNoZip = errors.New("no zip found")
+
 func parseRepackZIP(buf []byte) (*RepackConfig, error) {
 	r, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf)))
 	if err != nil {
-		return nil, err
+		return nil, errors.Join(errNoZip)
 	}
 
 	cfgFile, err := r.Open("config.yml")
@@ -640,6 +642,9 @@ func ParseRepackConfig(filePath string) (*RepackConfig, error) {
 		// try zip file
 		cfg2, err2 := parseRepackZIP(buf)
 		if err2 != nil {
+			if !errors.Is(err2, errNoZip) {
+				return nil, err2
+			}
 			return nil, err
 		}
 		return cfg2, nil

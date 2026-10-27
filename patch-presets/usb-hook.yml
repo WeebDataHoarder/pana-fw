@@ -1,4 +1,4 @@
-# cmd/repack-firmware config file for DP-UB9000/UB9004/UB820/UB824/UB420/UB424 1.82/1.84/1.85
+# cmd/repack-firmware config file for DP-UB9000/UB9004/UB820/UB824/UB420/UB424 1.82/1.84/1.85 and others
 # https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/index.html
 
 # Applies USB startup hook.

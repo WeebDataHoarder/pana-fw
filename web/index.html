@@ -18,29 +18,45 @@
     </style>
 </head>
 <body>
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+    <symbol id="exclamation-triangle-fill" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+    </symbol>
+</svg>
 <main class="container py-4" style="max-width: 52rem">
-    <h1 class="h4">Pana FW Repacker</h1>
+    <div class="d-flex align-items-center mb-2">
+        <h1 class="h4 mb-0">Pana FW Repacker</h1>
+        <div class="dropdown ms-auto">
+            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Patch Presets</button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li><h6 class="dropdown-header">Custom Firmware DP-UB9000/UB820/UB420</h6></li>
+                <li><a class="dropdown-item" href="/?config=presets/cfw-A8640EU-1.82.zip">CFW 1.82<div class="small text-body-secondary">by DreckSoft & prodarek</div></a></li>
+                <li><a class="dropdown-item" href="/?config=presets/cfw-A8640EU-1.82.zip">CFW 1.82 (Asia)<div class="small text-body-secondary">by DreckSoft & prodarek (Asiatic characters flavor)</div></a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><h6 class="dropdown-header">Development / Advanced usage</h6></li>
+                <li><a class="dropdown-item" href="/?config=presets/usb-hook.yml&force-patch=1">USB startup hook<div class="small text-body-secondary">Tested 1.82 to 1.85</div></a></li>
+            </ul>
+        </div>
+    </div>
     <p class="text-body-primary mb-3">
-        Patch supported player firmware files for customization.<br/>
-        See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#cmd-repack-firmware" target="_blank">Flashing Documentation</a>, and always read through recent messages on the <a href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/">AVForums Thread</a>.
+        Patch supported player firmware files for customization.
     </p>
     <p class="text-body-secondary small mb-3">
         Firmware and files are not uploaded and runs locally on the browser using WebAssembly.<br/>
-        Flashing modified firmware can leave the device unbootable and is done at your own risk.<br/>
-        Not all URLs are supported, and the server needs to offer CORS to allow remote download.
+        Not all external URLs are supported, and the server needs to offer CORS to allow remote download.
     </p>
 
     <form id="form" class="row g-3 mb-3">
         <div class="col-12">
             <label class="form-label" for="firmware">Original Firmware</label>
             <input class="form-control" type="file" id="firmware" accept=".frm,.exe,.zip">
-            <input class="form-control mt-2" type="url" id="firmwareUrl" placeholder="or URL" spellcheck="false">
+            <input class="form-control mt-2" id="firmwareUrl" placeholder="or URL" spellcheck="false">
             <div class="form-text">FRM file, or the ZIP / EXE as downloaded from Panasonic.</div>
         </div>
         <div class="col-md-12">
             <label class="form-label" for="config">Patch configuration</label>
             <input class="form-control" type="file" id="config" accept=".yml,.yaml,.zip">
-            <input class="form-control mt-2" type="url" id="configUrl" placeholder="or URL" spellcheck="false">
+            <input class="form-control mt-2" id="configUrl" placeholder="or URL" spellcheck="false">
             <div class="form-text">ZIP or YAML format. Not strictly necessary if using other options or downgrading.</div>
         </div>
         <div class="col-md-6">
@@ -87,9 +103,17 @@
         <div class="col-12 d-flex align-items-center gap-3">
             <button class="btn btn-primary" id="run" type="submit">Start Repacker</button>
             <span id="status" class="text-body-secondary small"></span>
-            <a id="download" class="btn btn-outline-success ms-auto" hidden></a>
+            <a id="download" class="btn btn-success ms-auto" hidden></a>
         </div>
     </form>
+
+    <div class="alert alert-warning d-flex" role="alert">
+        <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Warning:"><use xlink:href="#exclamation-triangle-fill"/></svg>
+        <div>
+            Flashing modified firmware can leave the device unbootable and is done at your own risk.<br/>
+            See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#cmd-repack-firmware" target="_blank">Flashing Documentation</a>, and always read through recent messages on the <a href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/">AVForums Thread</a>.
+        </div>
+    </div>
 
     <pre id="log" class="border rounded bg-body-tertiary p-2 small font-monospace"></pre>
 
@@ -99,6 +123,7 @@
     </footer>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script src="index.js?@COMMIT_SHORT@" type="text/javascript"></script>
 </body>
 </html>

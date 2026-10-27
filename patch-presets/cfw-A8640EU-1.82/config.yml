@@ -1,0 +1,93 @@
+targets:
+  # Targets version PANAEUSB.FRM 1.82 on UB9000-class models
+  # https://ospo.panasonic.com/oss/bdplayer/AWBPP18A.html
+  #
+  # United States
+  # DP-UB9000P/P19, DP-UB820P, DP-UB420P
+  # https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/ub420_us.html
+  #
+  # Canada
+  # DP-UB9000PC/PC1, DP-UB820PC, DP-UB420PC
+  # https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/ub420_canada.html
+  #
+  # Europe/UK
+  # DP-UB9000EG/EG1/EB/EB1, DP-UB9004EG/EG1, DP-UB820EG/EB/EF, DP-UB824EG, DP-UB420EG/EB, DP-UB424EG
+  # https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/ub420_euro.html
+  #
+  # Oceania/Hong Kong
+  # DP-UB9000GN/GN1, DP-UB820GN, DP-UB420GN, DP-UB9000GH
+  # https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/ub420_oceania.html
+  #
+  # China
+  # DP-UB9000GK
+  # https://av.jpn.support.panasonic.com/support/global/cs/bd/download/ub420/ub420_china.html
+  #
+  - model: A8640EU
+    version: 3820
+
+kernel:
+  # Patches fma4 kernel image with xdelta3
+  - action: gunzip
+    offset: 4096
+  - action: xdelta
+    offset: 4096
+    args:
+      file: fma4-kernel.patch
+  # Compression can take a while
+  - action: gzip
+    offset: 4096
+    args:
+      iterations: 5
+      block-splitting: true
+      block-splitting-max: 32
+
+cramfs0:
+  # Patches fma5 with xdelta3
+  - path: /sbin/init
+    action: xdelta
+    file: init.patch
+
+cramfs1:
+  # Patches fma7 with xdelta3
+  - path: /dtvrec/bin/apl_bdv
+    action: xdelta
+    file: apl_bdv.patch
+  - path: /dtvrec/bin/apl_dispsrv
+    action: xdelta
+    file: apl_dispsrv.patch
+  - path: /dtvrec/data/lang/apl_lang.dat
+    action: xdelta
+    file: apl_lang.dat.patch
+  - path: /dtvrec/bin/apl_meda_bdplay
+    action: xdelta
+    file: apl_meda_bdplay.patch
+  - path: /dtvrec/bin/apl_meda_dvdv
+    action: xdelta
+    file: apl_meda_dvdv.patch
+  - path: /dtvrec/bin/apl_mgr
+    action: xdelta
+    file: apl_mgr.patch
+  - path: /dtvrec/lib/libapl_envlib.so
+    action: xdelta
+    file: libapl_envlib.so.patch
+  - path: /dtvrec/lib/libnavi_api.so
+    action: xdelta
+    file: libnavi_api.so.patch
+  - path: /dtvrec/bin/thttpd
+    action: xdelta
+    file: thttpd.patch
+
+  # Adds Region Free text image below Panasonic logo
+  - path: /dtvrec/data/rui/ace001/portal/resource/images/BDP_wallpaper_black.png
+    action: image-composite
+    file: RegionFree.png
+    args:
+      resize: 95
+      x: 1608
+      y: 215
+  - path: /dtvrec/data/rui/ace001/portal/resource/images/BDP_H_wallpaper.png
+    action: image-composite
+    file: RegionFree.png
+    args:
+      x: 1612
+      y: 255

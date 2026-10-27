@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -eu
 cd "$(dirname "$0")/.."
@@ -19,3 +19,17 @@ sed -e "s|@REPO@|$repo|g" -e "s|@COMMIT@|$commit|g" -e "s|@COMMIT_SHORT@|$short|
 sed -e "s|@REPO@|$repo|g" -e "s|@COMMIT@|$commit|g" -e "s|@COMMIT_SHORT@|$short|g" -e "s|@COMMIT_DATE@|$date|g" web/index.js > "$out/index.js"
 cp web/worker.js "$out/"
 
+if [ ! -d "$out/presets" ]; then
+  mkdir "$out/presets"
+fi
+
+for f in patch-presets/*; do
+  if [ -d "${f}" ]; then
+    presetName=$(basename "${f}")
+    pushd "${f}"
+    zip -r -9 -o "../../$out/presets/${presetName}.zip" .
+    popd
+  else
+    cp -v "${f}" "$out/presets"
+  fi
+done
