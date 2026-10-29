@@ -298,6 +298,8 @@ func (e *ActionEntry) argInt(key string, def int) int {
 	}
 }
 
+var ErrActionEntryDelete = errors.New("action entry delete")
+
 func (e *ActionEntry) Apply(opener func(p string) (io.ReadCloser, error), data []byte) (out []byte, err error) {
 	origData := data
 	if e.Offset != 0 {
@@ -366,6 +368,10 @@ func (e *ActionEntry) Apply(opener func(p string) (io.ReadCloser, error), data [
 		} else {
 			panic(fmt.Errorf("missing file arg"))
 		}
+	case "delete":
+		return nil, ErrActionEntryDelete
+	case "rename":
+		return nil, nil
 
 	case "xdelta", "xdiff", "vcdiff":
 		var deltaBuf []byte
@@ -458,6 +464,12 @@ func (cfg *RepackConfig) PatchModule(mod *firmware.Module, data []byte) ([]byte,
 	if !ok {
 		if entries, ok = cfg.Modules[name]; !ok {
 			return nil, nil
+		}
+	}
+
+	for _, e := range entries {
+		if e.Action == "rename" {
+			mod.Header.Name = [4]byte([]byte(e.argString("name", name)))
 		}
 	}
 

@@ -177,10 +177,12 @@ func main() {
 		}
 	}
 
+	var modsToDelete []int
+
 	var reachedMAIN bool
 	var mainSum [sha256.Size]byte
 	// do changes, patches
-	for _, mod := range fw.Entries {
+	for modIndex, mod := range fw.Entries {
 		if mod == nil {
 			continue
 		}
@@ -538,6 +540,21 @@ func main() {
 				}
 			}
 
+			if repackConfig != nil && repackConfig.Modules["MAIN"] != nil {
+				newData, err := repackConfig.PatchModule(mod, data)
+				if err != nil {
+					if errors.Is(err, ErrActionEntryDelete) {
+						data = nil
+						patched = true
+					} else {
+						panic(err)
+					}
+				} else if newData != nil && !bytes.Equal(newData, data) {
+					data = newData
+					patched = true
+				}
+			}
+
 			if patched {
 				fmt.Printf("MAIN: repacking segments...\n")
 				mod.RawData = nil
@@ -579,6 +596,10 @@ func main() {
 			if repackConfig != nil {
 				newData, err := repackConfig.PatchModule(mod, data)
 				if err != nil {
+					if errors.Is(err, ErrActionEntryDelete) {
+						modsToDelete = append(modsToDelete, modIndex)
+						continue
+					}
 					panic(err)
 				}
 				if newData != nil && !bytes.Equal(newData, data) {
@@ -645,11 +666,25 @@ func main() {
 					}
 				} else {
 					mod.RawData = data
+					mod.Pad()
 				}
 				mod.Header.Size = uint32(len(mod.RawData))
 
 				fmt.Printf("NEW %s: ver %s model = %s offset = %08x len %08x data %08x\n", utils.CString(mod.Header.Name[:]), utils.CString(mod.Header.Version[:]), utils.CString(mod.Header.Model[:]), mod.Header.Offset, mod.Header.Size, len(mod.Data()))
 			}
+		}
+	}
+
+	if len(modsToDelete) > 0 {
+		slices.Sort(modsToDelete)
+		slices.Reverse(modsToDelete)
+		for _, modIndex := range modsToDelete {
+			mod := fw.Entries[modIndex]
+			if mod == nil {
+				panic(fmt.Errorf("no entry found for mod %d", modIndex))
+			}
+			clear(fw.Header[modIndex*48 : modIndex*48+48])
+			fw.Entries[modIndex] = nil
 		}
 	}
 

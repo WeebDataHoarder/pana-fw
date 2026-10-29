@@ -292,6 +292,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 		if mod == nil {
 			continue
 		}
+		mod.Pad()
 		mod.Header.Size = uint32(len(mod.RawData))
 		mod.Header.Offset = offset
 		// add extra 16 bytes in case of unalignment
@@ -533,6 +534,16 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 	}
 
 	return nil
+}
+
+var padModules = [][4]byte{
+	ModuleNamePROG,
+}
+
+func (m *Module) Pad() {
+	if slices.Contains(padModules, m.Header.Name) && len(m.RawData)%16 != 0 {
+		m.RawData = append(m.RawData, make([]byte, 16-len(m.RawData)%16)...)
+	}
 }
 
 type ModuleHeader struct {
