@@ -191,10 +191,15 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 		var sections []AESHeaderFileEntry
 
 		for _, e := range header.Entries {
-			if e.Offset != 0 && e.Size != 0 {
-				sections = append(sections, e)
+			if e.Offset == 0 && e.Size == 0 {
+				continue
 			}
-			m.AESKey.Decrypt(buf[e.Offset : e.Offset+e.Size])
+			end := int64(e.Offset) + int64(e.Size)
+			if int64(e.Offset) > int64(len(buf)) || end > int64(len(buf)) {
+				return fmt.Errorf("AES header entry out of range: offset=%#x size=%#x buf=%#x", e.Offset, e.Size, len(buf))
+			}
+			sections = append(sections, e)
+			m.AESKey.Decrypt(buf[e.Offset:end])
 		}
 
 		if len(sections) != 1 {
