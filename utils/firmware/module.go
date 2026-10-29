@@ -17,11 +17,13 @@ import (
 
 var ModuleNameMAIN = [4]byte([]byte("MAIN"))
 var ModuleNamePROG = [4]byte([]byte("PROG"))
+var ModuleNameDIAG = [4]byte([]byte("DIAG"))
 
 var KnownModuleHeaderNames = [][4]byte{
 	[4]byte([]byte("BOOT")),
 	[4]byte([]byte("BUCD")),
 	[4]byte([]byte("CDDB")),
+	ModuleNameDIAG,
 	[4]byte([]byte("DRV1")),
 	[4]byte([]byte("DRV2")),
 	[4]byte([]byte("ELSW")),
@@ -537,6 +539,7 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 }
 
 var padModules = [][4]byte{
+	ModuleNameDIAG,
 	ModuleNamePROG,
 }
 
