@@ -30,6 +30,7 @@ func main() {
 	inPath := flag.String("in", "", "input FRM, ZIP or EXE path")
 	outPath := flag.String("out", "", "output FRM path")
 	compression := flag.String("compression", "", "compression method for MAIN. Supported options: gzip, lzss. Will pick gzip by default, unless input firmware is LZSS only.")
+	onlyCustomEncryption := flag.Bool("only-custom-encryption", false, "when using AES, drop AES when re-encrypting")
 	increaseVersion := flag.Uint("version-offset", 10, "offset to increase MAIN version with, default +10")
 	patchVersion := flag.Bool("patch-version", false, "patch version with the given -version-offset, useful for forcefully upgrading specific versions")
 	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Update is applied regardless of version")
@@ -693,6 +694,12 @@ func main() {
 		if mod != nil {
 			expectedSum[i] = sha256.Sum256(mod.Data())
 		}
+	}
+
+	if *onlyCustomEncryption && fw.AESKey != nil {
+		fw.AESKey = nil
+
+		fmt.Printf("FRM: Using Custom key = %X\n", fw.CustomKey)
 	}
 
 	// encode
