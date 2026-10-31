@@ -1,0 +1,31 @@
+# cmd/repack-firmware config file for AArch64 devices, specifically DP-UB9000/UB9004/UB820/UB824/UB420/UB424 and others
+
+# replace PROG to backup NAND onto the USB device.
+# MUST use FAT32
+# On reboot, the NAND will be dumped as NANDDUMP.BIN. This may take a while.
+# If the file exists, it will be replaced.
+# Track progress using the front panel display or LED patterns.
+# LED will keep blinking fast until it's done.
+# When it's done, POWER will appear and LED will stay solid.
+# Remove the USB drive before rebooting after it's done.
+modules:
+  PROG:
+    - action: replace
+      offset: 0
+      args:
+        file: PROG.bin
+
+  # explicitly remove MAIN contents using enough empty data
+  MAIN:
+    - action: replace
+      offset: 0
+      args:
+        file: zero.bin
+
+  # delete others
+  MINI:
+    - action: delete
+  DRV1:
+    - action: delete
+  BUCD:
+    - action: delete

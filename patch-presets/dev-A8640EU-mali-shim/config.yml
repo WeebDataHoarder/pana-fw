@@ -1,0 +1,7 @@
+targets:
+  - model: A8640EU
+
+cramfs0:
+  - action: replace
+    path: /usr_root/lib/libmali.so
+    file: libmali.so

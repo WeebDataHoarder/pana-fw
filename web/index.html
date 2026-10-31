@@ -27,19 +27,20 @@
     <div class="d-flex align-items-center mb-2">
         <h1 class="h4 mb-0">Pana FW Repacker</h1>
         <div class="dropdown ms-auto">
-            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Patch Presets</button>
+            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Patch Presets</button>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li><h6 class="dropdown-header">Custom Firmware DP-UB9000/UB820/UB420</h6></li>
-                <li><a class="dropdown-item" href="/?config=presets/cfw-A8640EU-1.82.zip&patch-force=1">RegionFree CFW 1.82<div class="small text-body-secondary">by DreckSoft & prodarek</div></a></li>
-                <li><a class="dropdown-item" href="/?config=presets/cfw-A8640EU-1.82-asia.zip&patch-force=1">RegionFree CFW 1.82 (Asia)<div class="small text-body-secondary">by DreckSoft & prodarek (Asiatic characters flavor)</div></a></li>
+                <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420</h6></li>
+                <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&patch-force=1">RegionFree CFW 1.82<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
+                <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82-asia.zip&patch-force=1">RegionFree CFW 1.82 (Asiatic characters)<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><h6 class="dropdown-header">Development / Advanced usage</h6></li>
-                <li><a class="dropdown-item" href="/?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Tested 1.82 to 1.85</div></a></li>
+                <li><a class="dropdown-item" href="?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Runs boot scripts from USB</div></a></li>
+                <li><a class="dropdown-item" href="?config=presets/dev-nand-backup.zip&patch-force=1">USB NAND Backup<div class="small text-body-secondary">Backups NAND to NANDDUMP.BIN</div></a></li>
             </ul>
         </div>
     </div>
     <p class="text-body-primary mb-3">
-        Patch supported player firmware files for customization.
+        Patch supported player firmware files for customization and recovery.
     </p>
     <p class="text-body-secondary small mb-3">
         Firmware and files are not uploaded and runs locally on the browser using WebAssembly.<br/>
@@ -54,10 +55,13 @@
             <div class="form-text">FRM file, or the ZIP / EXE as downloaded from Panasonic.</div>
         </div>
         <div class="col-md-12">
-            <label class="form-label" for="config">Patch configuration</label>
+            <label class="form-label" for="config">Patch Configuration</label>
             <input class="form-control" type="file" id="config" accept=".yml,.yaml,.zip">
             <input class="form-control mt-2" id="configUrl" placeholder="or URL" spellcheck="false">
-            <div class="form-text">ZIP or YAML format. Not strictly necessary if using other options or downgrading.</div>
+            <div class="form-text">
+                ZIP or YAML format. Not strictly necessary if using other options or downgrading.<br/>
+                Some patches can be applied after each other to merge their results.
+            </div>
         </div>
         <div class="col-md-6">
             <label class="form-label" for="compression">Firmware Compression</label>
@@ -66,6 +70,7 @@
                 <option value="lzss">LZSS (slow)</option>
                 <option value="">same as input</option>
             </select>
+            <div class="form-text">Compression to use for MAIN contents, only used if patches to MAIN partitions was done.</div>
         </div>
         <div class="col-md-6">
             <label class="form-label" for="outName">Output name</label>
@@ -88,7 +93,7 @@
             </div>
         </div>
        <div class="col-12">
-           <h2 class="h6 border-top pt-3 mb-0">Advanced features</h2>
+           <h2 class="h6 border-top pt-3 mb-0">Advanced Features</h2>
        </div>
         <div class="col-6">
             <label class="form-label" for="extraArgs">Extra options</label>
@@ -111,7 +116,7 @@
         <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Warning:"><use xlink:href="#exclamation-triangle-fill"/></svg>
         <div>
             Flashing modified firmware can leave the device unbootable and is done at your own risk.<br/>
-            See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#cmd-repack-firmware" target="_blank">Flashing Documentation</a>, and always read through recent messages on the <a href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/">AVForums RegionFree Thread</a>.
+            See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#cmd-repack-firmware" target="_blank">Flashing Documentation</a>, and read recent messages on <a href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/">AVForums RegionFree Thread</a>.
         </div>
     </div>
 
