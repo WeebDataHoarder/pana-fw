@@ -21,6 +21,7 @@ import (
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/firmware"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/lang"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/romfs"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/xdelta3"
 	"github.com/bluekeyes/go-gitdiff/gitdiff"
@@ -150,6 +151,29 @@ func (e *FilePatchEntry) Apply(opener func(p string) (io.ReadCloser, error), dat
 		}
 
 		out, err = xdelta3.Decode(data, contentBuf)
+		if err != nil {
+			return nil, err
+		}
+
+	// for /dtvrec/data/lang/apl_lang.dat
+	case "lang":
+		if contentBuf == nil {
+			return nil, fmt.Errorf("missing file or hex content arg")
+		}
+		var langConfig []LangConfigEntry
+		if err := yaml.Unmarshal(contentBuf, &langConfig); err != nil {
+			return nil, err
+		}
+		var langFile lang.File
+		if err = langFile.UnmarshalBinary(data); err != nil {
+			return nil, err
+		}
+		for i, c := range langConfig {
+			if err = c.Patch(&langFile); err != nil {
+				return nil, fmt.Errorf("patching lang config %d: %w", i, err)
+			}
+		}
+		out, err = langFile.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}

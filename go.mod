@@ -16,6 +16,7 @@ require (
 	github.com/ulikunitz/xz v0.5.17
 	golang.org/x/image v0.47.0
 	golang.org/x/sync v0.24.0
+	golang.org/x/text v0.43.0
 )
 
 replace github.com/ably/vcdiff-go v0.0.2 => git.gammaspectra.live/WeebDataHoarder/vcdiff-go v0.0.0-20260502054726-48a7585a8b73
