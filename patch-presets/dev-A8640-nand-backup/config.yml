@@ -8,6 +8,11 @@
 # LED will keep blinking fast until it's done.
 # When it's done, POWER will appear and LED will stay solid.
 # Remove the USB drive before rebooting after it's done.
+
+targets:
+  - model: A8640
+  - model: A8640EU
+
 modules:
   PROG:
     - action: replace

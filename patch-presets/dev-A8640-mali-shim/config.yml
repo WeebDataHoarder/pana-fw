@@ -1,4 +1,5 @@
 targets:
+  - model: A8640
   - model: A8640EU
 
 cramfs0:
