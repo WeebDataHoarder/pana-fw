@@ -1,0 +1,22 @@
+# Kernel fix for 100% on two cores for UB9000 (Japan)
+# See https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/page-45#post-31929649
+
+targets:
+  - model: A8650
+    version: 3690
+
+kernel:
+  # Patches fma4 kernel image with xdelta3
+  - action: gunzip
+    offset: 4096
+  - action: xdelta
+    offset: 4096
+    args:
+      file: fma4-kernel.patch
+  # Compression can take a while
+  - action: gzip
+    offset: 4096
+    args:
+      iterations: 5
+      block-splitting: true
+      block-splitting-max: 32

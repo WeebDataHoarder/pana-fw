@@ -15,12 +15,19 @@
     </script>
     <style>
         #log { height: 22rem; overflow-y: auto; white-space: pre-wrap; }
+        .preset-item { display: flex; align-items: stretch; }
+        .preset-item > .dropdown-item { width: auto; flex: 1 1 auto; }
+        .preset-item > .preset-info { flex: 0 0 auto; display: flex; align-items: center; padding-left: .5rem; padding-right: .75rem; }
+
     </style>
 </head>
 <body>
 <svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
     <symbol id="exclamation-triangle-fill" fill="currentColor" viewBox="0 0 16 16">
         <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+    </symbol>
+    <symbol id="info-circle" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/>
     </symbol>
 </svg>
 <main class="container py-4" style="max-width: 52rem">
@@ -29,13 +36,24 @@
         <div class="dropdown ms-auto">
             <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Patch Presets</button>
             <ul class="dropdown-menu dropdown-menu-end">
-                <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420</h6></li>
+                <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420 (International)</h6></li>
                 <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&patch-force=1">RegionFree CFW 1.82<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
                 <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82-asia.zip&patch-force=1">RegionFree CFW 1.82 (Asiatic characters)<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
-                <li><a class="dropdown-item" href="?config=presets/dev-A8640-nand-backup.zip&patch-force=1">USB NAND Backup<div class="small text-body-secondary">Backups NAND to NANDDUMP.BIN</div></a></li>
+
+                <li><h6 class="dropdown-header">DP-UB9000 (Japan)</h6></li>
+                <li class="preset-item">
+                    <a class="dropdown-item" href="?config=presets/kernel-A8650-1.69.zip&patch-force=1">Kernel CPU Fix 1.69<div class="small text-body-secondary">by DreckSoft</div></a>
+                    <a class="dropdown-item preset-info" target="_blank" href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/page-45#post-31929649"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
+                </li>
+
                 <li><hr class="dropdown-divider"></li>
+
                 <li><h6 class="dropdown-header">Development / Advanced usage</h6></li>
-                <li><a class="dropdown-item" href="?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Runs boot scripts from USB</div></a></li>
+                <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-nand-backup.zip&patch-force=1">USB NAND Backup<div class="small text-body-secondary">For DP-UB9000/UB820/UB420 models only.<br/> Backups NAND to NANDDUMP.BIN</div></a></li>
+                <li class="preset-item">
+                    <a class="dropdown-item" href="?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Runs boot scripts from USB</div></a>
+                    <a class="dropdown-item preset-info" target="_blank" href="@REPO@/src/commit/@COMMIT@/patch-presets/usb-hook.yml"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
+                </li>
             </ul>
         </div>
     </div>

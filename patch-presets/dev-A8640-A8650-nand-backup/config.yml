@@ -12,6 +12,7 @@
 targets:
   - model: A8640
   - model: A8640EU
+  - model: A8650
 
 modules:
   PROG:
