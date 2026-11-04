@@ -1,0 +1,9 @@
+targets:
+  - model: A6610
+  - model: A6610EU
+  - model: A6620
+
+cramfs0:
+  - action: replace
+    path: /usr_root/lib/librecs_mgl.so
+    file: librecs_mgl.so

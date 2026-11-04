@@ -48,12 +48,18 @@
 
                 <li><hr class="dropdown-divider"></li>
 
-                <li><h6 class="dropdown-header">Development / Advanced usage</h6></li>
+                <li><h6 class="dropdown-header">Advanced usage</h6></li>
                 <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-nand-backup.zip&patch-force=1">USB NAND Backup<div class="small text-body-secondary">For DP-UB9000/UB820/UB420 models only.<br/> Backups NAND to NANDDUMP.BIN</div></a></li>
                 <li class="preset-item">
                     <a class="dropdown-item" href="?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Runs boot scripts from USB</div></a>
                     <a class="dropdown-item preset-info" target="_blank" href="@REPO@/src/commit/@COMMIT@/patch-presets/usb-hook.yml"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
                 </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <li><h6 class="dropdown-header">Development Only</h6></li>
+                <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-mali-shim.zip&patch-force=1">QEMU libmali.so shim<div class="small text-body-secondary">For DP-UB9000/UB820/UB420.</div></a></li>
+                <li><a class="dropdown-item" href="?config=presets/dev-A6610-A6620-recs-shim.zip&patch-force=1">QEMU librecs_mgl.so shim<div class="small text-body-secondary">For DP-UB900/UB700.</div></a></li>
             </ul>
         </div>
     </div>

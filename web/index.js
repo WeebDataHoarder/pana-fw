@@ -3,9 +3,14 @@ const $ = (id) => document.getElementById(id);
 
 
 const query = new URLSearchParams(location.search);
-for (const [param, id] of [["firmware", "firmwareUrl"], ["config", "configUrl"], ["args", "extraArgs"]]) {
+for (const [param, id, fileId] of [["firmware", "firmwareUrl", "firmware"], ["config", "configUrl", "config"], ["args", "extraArgs"]]) {
     if (query.has(param)) {
          $(id).value = query.get(param);
+         if (fileId) {
+             $(id).readOnly = true;
+             $(id).classList.remove("mt-2");
+             $(fileId).hidden = true;
+         }
     }
 }
 for (const [param, id] of [["compression", "compression"], ["out", "outName"]]) {
