@@ -3,7 +3,7 @@ const $ = (id) => document.getElementById(id);
 
 
 const query = new URLSearchParams(location.search);
-for (const [param, id, fileId] of [["firmware", "firmwareUrl", "firmware"], ["config", "configUrl", "config"], ["args", "extraArgs"]]) {
+for (const [param, id, fileId] of [["firmware", "firmwareUrl", "firmware"], ["config", "configUrl", "config"], ["args", "extraArgs"], ["flavor", "configFlavor"]]) {
     if (query.has(param)) {
          $(id).value = query.get(param);
          if (fileId) {
@@ -73,6 +73,7 @@ $("form").addEventListener("submit", async (ev) => {
                 if (config) args.push("-config=" + config);
                 for (const f of $("extra").files) add(f.name, await f.arrayBuffer());
                 if ($("compression").value) args.push("-compression=" + $("compression").value);
+                if ($("configFlavor").value) args.push("-config-flavor=" + $("configFlavor").value);
                 for (const c of $("flags").querySelectorAll("input:checked")) args.push("-" + c.id);
                 args.push(...$("extraArgs").value.split(/\s+/).filter(Boolean), "-out=/out/" + outName);
         } catch (e) {

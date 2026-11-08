@@ -38,7 +38,7 @@
             <ul class="dropdown-menu dropdown-menu-end">
                 <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420 (International)</h6></li>
                 <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&patch-force=1">RegionFree CFW 1.82<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
-                <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&patch-force=1&args=-config-flavor%3Dasia">RegionFree CFW 1.82 (Asiatic characters)<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
+                <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&flavor=asia&patch-force=1">RegionFree CFW 1.82 (Asiatic characters)<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
 
                 <li><h6 class="dropdown-header">DP-UB9000 (Japan)</h6></li>
                 <li class="preset-item">
@@ -97,12 +97,9 @@
             <div class="form-text">Compression to use for MAIN contents, only used if patches to MAIN partitions was done.</div>
         </div>
         <div class="col-md-6">
-            <label class="form-label" for="outName">Output name</label>
-            <select class="form-select" id="outName">
-                <option value="PANAEUSB.FRM">PANAEUSB.FRM</option>
-                <option value="PANA_DVD.FRM">PANA_DVD.FRM (old)</option>
-                <option value="PANA_ESD.FRM">PANA_ESD.FRM (legacy)</option>
-            </select>
+            <label class="form-label" for="configFlavor">Patch Flavor</label>
+            <input class="form-control font-monospace" type="text" id="configFlavor" spellcheck="false">
+            <div class="form-text">Flavor of Patch Configuration, if supported.</div>
         </div>
         <div class="col-12" id="flags">
             <div class="form-check">
@@ -119,7 +116,7 @@
        <div class="col-12">
            <h2 class="h6 border-top pt-3 mb-0">Advanced Features</h2>
        </div>
-        <div class="col-6">
+        <div class="col-12">
             <label class="form-label" for="extraArgs">Extra options</label>
             <input class="form-control font-monospace" type="text" id="extraArgs" spellcheck="false" placeholder="-patch-raw /in/fma4.img ...">
             <div class="form-text">See <a href="https://git.gammaspectra.live/WeebDataHoarder/pana-fw#usage" target="_blank">usage documentation</a>.</div>
@@ -128,6 +125,14 @@
             <label class="form-label" for="extra">Extra files</label>
             <input class="form-control" type="file" id="extra" multiple>
             <div class="form-text">Placed under <code>/in/FILE_NAME</code> within tool.</div>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="outName">Output name</label>
+            <select class="form-select" id="outName">
+                <option value="PANAEUSB.FRM">PANAEUSB.FRM</option>
+                <option value="PANA_DVD.FRM">PANA_DVD.FRM (old)</option>
+                <option value="PANA_ESD.FRM">PANA_ESD.FRM (legacy)</option>
+            </select>
         </div>
         <div class="col-12 d-flex align-items-center gap-3">
             <button class="btn btn-primary" id="run" type="submit">Start Repacker</button>
