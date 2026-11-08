@@ -635,15 +635,21 @@ func (cfg *RepackConfig) PatchData(entries []ActionEntry, data []byte) ([]byte, 
 
 var errNoZip = errors.New("no zip found")
 
-func parseRepackZIP(buf []byte) (*RepackConfig, error) {
+func parseRepackZIP(buf []byte, flavor string) (*RepackConfig, error) {
 	r, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf)))
 	if err != nil {
 		return nil, errors.Join(errNoZip)
 	}
 
-	cfgFile, err := r.Open("config.yml")
+	configPath := "config.yml"
+
+	if flavor != "" {
+		configPath = fmt.Sprintf("config-%s.yml", flavor)
+	}
+
+	cfgFile, err := r.Open(configPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open %s: %w", configPath, err)
 	}
 	defer cfgFile.Close()
 
@@ -667,7 +673,7 @@ func parseRepackZIP(buf []byte) (*RepackConfig, error) {
 	return &cfg, nil
 }
 
-func ParseRepackConfig(filePath string) (*RepackConfig, error) {
+func ParseRepackConfig(filePath, flavor string) (*RepackConfig, error) {
 	var cfg RepackConfig
 	buf, err := os.ReadFile(filePath)
 	if err != nil {
@@ -675,7 +681,7 @@ func ParseRepackConfig(filePath string) (*RepackConfig, error) {
 	}
 	if err := yaml.UnmarshalWithOptions(buf, &cfg, yaml.UseJSONUnmarshaler(), yaml.DisallowUnknownField()); err != nil {
 		// try zip file
-		cfg2, err2 := parseRepackZIP(buf)
+		cfg2, err2 := parseRepackZIP(buf, flavor)
 		if err2 != nil {
 			if !errors.Is(err2, errNoZip) {
 				return nil, err2

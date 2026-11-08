@@ -56,8 +56,8 @@ cramfs1:
     action: xdelta
     file: apl_dispsrv.patch
   - path: /dtvrec/data/lang/apl_lang.dat
-  - action: lang
-  - file: apl_lang.dat.yml
+    action: lang
+    file: apl_lang.dat.yml
   - path: /dtvrec/bin/apl_meda_bdplay
     action: xdelta
     file: apl_meda_bdplay.patch.asia

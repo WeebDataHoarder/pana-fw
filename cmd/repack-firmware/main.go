@@ -44,6 +44,7 @@ func main() {
 	CRAMFS1Partition := flag.Int("cramfs1-partition", 7, "CRAMFS #1 partition on MAIN data, for patching. 7 = fma7")
 
 	repackConfigPath := flag.String("config", "", "repack config ZIP or YAML file path")
+	repackConfigFlavor := flag.String("config-flavor", "", "config flavor within ZIP")
 
 	flag.Parse()
 
@@ -71,11 +72,11 @@ func main() {
 
 	var repackConfig *RepackConfig
 	if *repackConfigPath != "" {
-		repackConfig, err = ParseRepackConfig(*repackConfigPath)
+		repackConfig, err = ParseRepackConfig(*repackConfigPath, *repackConfigFlavor)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Printf("Loaded repack config = %s\n", *repackConfigPath)
+		fmt.Printf("Loaded repack config = %q, flavor = %q\n", *repackConfigPath, *repackConfigFlavor)
 	}
 
 	if fw.AESKey != nil {
