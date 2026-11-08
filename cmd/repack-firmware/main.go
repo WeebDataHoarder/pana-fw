@@ -3,27 +3,21 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
-	"debug/pe"
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"os"
-	"path"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/klauspost/compress/gzip"
-	"github.com/klauspost/compress/zip"
-	"github.com/nwaples/rardecode/v2"
-
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/archive"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/firmware"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/lzss"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/romfs"
+	"github.com/klauspost/compress/gzip"
 )
 
 func main() {
@@ -63,73 +57,9 @@ func main() {
 		panic(err)
 	}
 
-	firmwareNames := []string{"PANAEUSB.FRM", "PANA_USB.FRM", "PANA_DVD.FRM", "PANA_ESD.FRM", "PANA__SD.FRM"}
-
-	if strings.ToLower(filepath.Ext(*inPath)) == ".zip" {
-		// check if ZIP, automatically extract
-		if zipReader, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf))); err == nil {
-			for _, zf := range zipReader.File {
-				if slices.Contains(firmwareNames, path.Base(zf.Name)) {
-					f, err := zf.Open()
-					if err != nil {
-						continue
-					}
-					buf, err = io.ReadAll(f)
-					if err != nil {
-						panic(err)
-					}
-					fmt.Printf("ZIP: Extracted %s\n", zf.Name)
-					break
-				}
-			}
-		} else {
-			panic(err)
-		}
-	} else if strings.ToLower(filepath.Ext(*inPath)) == ".exe" {
-		// check if EXE SFX RAR, automatically extract
-		if peFile, err := pe.NewFile(bytes.NewReader(buf)); err == nil {
-			var start, end int64 = 0, int64(len(buf))
-			for _, s := range peFile.Sections {
-				if e := int64(s.Offset) + int64(s.Size); e > start {
-					start = e
-				}
-			}
-			switch oh := peFile.OptionalHeader.(type) {
-			case *pe.OptionalHeader32:
-				if d := oh.DataDirectory[4]; d.VirtualAddress != 0 && d.Size != 0 {
-					end = int64(d.VirtualAddress)
-				}
-			case *pe.OptionalHeader64:
-				if d := oh.DataDirectory[4]; d.VirtualAddress != 0 && d.Size != 0 {
-					end = int64(d.VirtualAddress)
-				}
-			}
-
-			if rarFile, err := rardecode.NewReader(bytes.NewReader(buf[start:end])); err == nil {
-				for {
-					h, err := rarFile.Next()
-					if err == io.EOF {
-						break
-					}
-					if err != nil {
-						panic(err)
-					}
-					if slices.Contains(firmwareNames, path.Base(h.Name)) {
-						buf, err = io.ReadAll(rarFile)
-						if err != nil {
-							panic(err)
-						}
-						fmt.Printf("SFX RAR: Extracted %s\n", h.Name)
-						break
-					}
-				}
-			} else {
-				panic(err)
-			}
-
-		} else {
-			panic(err)
-		}
+	buf, _, err = archive.UnpackFirmwareArchive(buf, *inPath)
+	if err != nil {
+		panic(err)
 	}
 
 	var fw firmware.ModuleEntries

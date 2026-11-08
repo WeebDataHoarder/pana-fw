@@ -279,7 +279,7 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 			m.Entries = append(m.Entries, nil)
 			isProbablyModule := mod.Header.OEM == OEMPanasonic && mod.Header.CompressionType <= 3 && mod.Header.FormatFlag <= 1 && mod.Header.Unknown3 == [3]byte{}
 			if slices.Contains(KnownModuleHeaderNames, mod.Header.Name) && isProbablyModule {
-				return err
+				return fmt.Errorf("while decoding %s %s: %w", utils.CString(mod.Header.Name[:]), utils.CString(mod.Header.Version[:]), err)
 			} else if isProbablyModule && errors.Is(err, ErrNotModule) {
 				return fmt.Errorf("possible module header %s not properly detected: %#+v: %w", mod.Header.Name, mod.Header, err)
 			}
@@ -495,9 +495,10 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 
 	defer r.Seek(off, io.SeekStart)
 
+	var n int
 	m.RawData = make([]byte, utils.Align(m.Header.Size, 16))
-	if _, err = io.ReadFull(r, m.RawData); err != nil {
-		return err
+	if n, err = io.ReadFull(r, m.RawData); err != nil {
+		return fmt.Errorf("reading data (read %d, expected %d): %w", n, len(m.RawData), err)
 	}
 
 	if !slices.Contains(excludeEncryptionModules, m.Header.Name) && key != nil {

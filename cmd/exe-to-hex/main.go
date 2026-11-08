@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"os"
 
@@ -23,10 +22,6 @@ func main() {
 	buf, err := os.ReadFile(*inPath)
 	if err != nil {
 		panic(err)
-	}
-
-	if bytes.Contains(buf, []byte("======== update Mainsoft parts ========")) {
-
 	}
 
 	if *baseAddress == -1 {

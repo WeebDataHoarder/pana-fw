@@ -14,7 +14,6 @@ import (
 	"math"
 	"os"
 	"path"
-	"path/filepath"
 	"slices"
 
 	"git.gammaspectra.live/WeebDataHoarder/go-zopfli/zopfli"
@@ -659,7 +658,7 @@ func parseRepackZIP(buf []byte) (*RepackConfig, error) {
 	}
 
 	cfg.opener = func(pathStr string) (io.ReadCloser, error) {
-		if !filepath.IsAbs(pathStr) {
+		if !path.IsAbs(pathStr) {
 			return r.Open(pathStr)
 		} else {
 			return nil, errors.New("absolute paths not supported in ZIP mode")
@@ -689,7 +688,7 @@ func ParseRepackConfig(filePath string) (*RepackConfig, error) {
 	base := path.Dir(filePath)
 	cfg.opener = func(pathStr string) (io.ReadCloser, error) {
 		// this can use absolute/relative filepaths outside of the config location, intended
-		if !filepath.IsAbs(pathStr) {
+		if !path.IsAbs(pathStr) {
 			return os.Open(path.Join(base, pathStr))
 		} else {
 			return os.Open(pathStr)

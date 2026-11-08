@@ -10,7 +10,6 @@ import (
 	"math"
 	"os"
 	"path"
-	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -62,7 +61,7 @@ func main() {
 	flag.Parse()
 
 	if *outPath == "" {
-		*outPath = filepath.Dir(*inPath)
+		*outPath = path.Dir(*inPath)
 	}
 
 	err := os.MkdirAll(*outPath, 0755)
@@ -386,7 +385,7 @@ func main() {
 						//TODO
 						defer fs.Close()
 
-						fsEntries, err := fs.Directory("", &fs.Super.Root)
+						fsEntries, err := fs.Directory("", *fs.Root())
 						if err != nil {
 							fmt.Printf("error %s\n", err.Error())
 							return
@@ -496,7 +495,7 @@ func main() {
 					}
 					defer fs.Close()
 
-					dirList, err := fs.Directory("/", &fs.Super.Root)
+					dirList, err := fs.Directory("/", *fs.Root())
 					if err != nil {
 						panic(err)
 					}

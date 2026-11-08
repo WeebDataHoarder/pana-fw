@@ -75,6 +75,7 @@ Sub device 0x0 to 0x7, cmd 0x00 to 0xFF map to Keys 0x000-0x7FF (key 0xFF on eac
 |                                 | `41 B0 01 58` | `0xB`  | `0x1`  | `0x58` | `A:0x12002B1, C:0x180` | actVila 0x158      |
 |                        Link/Net | `41 B0 01 5C` | `0xB`  | `0x1`  | `0x5C` | `A:0x12002B1, C:0x1C0` | NET 0x15c          |
 |                           Skype | `41 B0 01 5E` | `0xB`  | `0x1`  | `0x5E` | `A:0x12002B1, C:0x1E0` | Skype 0x15e        |
+|                         Netflix | `41 B0 01 68` | `0xB`  | `0x1`  | `0x68` | `A:0x12002B1, C:0x280` | Netflix 0x168      |
 |                           0.00W | `41 B0 01 69` | `0xB`  | `0x1`  | `0x69` | `A:0x12002B1, C:0x290` | ECO 0x169          | 
 |                      MoreTV/VOD | `41 B0 01 6A` | `0xB`  | `0x1`  | `0x6A` | `A:0x12002B1, C:0x2A0` | VOD 0x16a          | 
 |                      Easy Start | `41 B0 01 6B` | `0xB`  | `0x1`  | `0x6B` | `A:0x12002B1, C:0x2B0` |

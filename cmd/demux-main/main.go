@@ -1,34 +1,69 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/archive"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/firmware"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/romfs"
 )
 
 func main() {
-	inPath := flag.String("in", "", "input MAIN.bin file path")
+	inPath := flag.String("in", "", "input MAIN.bin file path or FRM")
 	outPath := flag.String("out", "", "output folder for partitions. Defaults to -in base directory")
 	splitChar := flag.Int("split", firmware.MainPartitionSplitCharacter, "split character. 0x0a for newline, 0x20 for space")
 	flag.Parse()
 
-	if *outPath == "" {
-		*outPath = filepath.Dir(*inPath)
+	if *inPath == "" {
+		flag.Usage()
+		os.Exit(1)
 	}
 
-	err := os.MkdirAll(*outPath, 0755)
+	buf, err := os.ReadFile(*inPath)
 	if err != nil {
 		panic(err)
 	}
 
-	buf, err := os.ReadFile(*inPath)
+	buf, isFRM, err := archive.UnpackFirmwareArchive(buf, *inPath)
+	if err != nil {
+		panic(err)
+	}
+
+	if isFRM {
+		var fw firmware.ModuleEntries
+		err = fw.FromBuffer(buf)
+		if err != nil {
+			panic(err)
+		}
+		for _, mod := range fw.Entries {
+			if mod == nil {
+				continue
+			}
+			if mod.Header.Name == firmware.ModuleNameMAIN {
+				fmt.Printf("found module data\n")
+
+				var ml firmware.MainList
+				if err = ml.FromReader(bytes.NewReader(mod.Data()), fw.Sum, fw.ExpandedKey); err != nil {
+					panic(err)
+				}
+
+				buf = ml.Data
+				break
+			}
+		}
+	}
+
+	if *outPath == "" {
+		*outPath = path.Dir(*inPath)
+	}
+
+	err = os.MkdirAll(*outPath, 0755)
 	if err != nil {
 		panic(err)
 	}
