@@ -37,7 +37,7 @@ func main() {
 
 	if isFRM {
 		var fw firmware.ModuleEntries
-		err = fw.FromBuffer(buf)
+		err = fw.FromBuffer(buf, true)
 		if err != nil {
 			panic(err)
 		}

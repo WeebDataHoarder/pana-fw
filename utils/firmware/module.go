@@ -167,7 +167,7 @@ type AESHeaderFileEntry struct {
 	Size   uint32
 }
 
-func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
+func (m *ModuleEntries) FromBuffer(buf []byte, allowSlowSearch bool) (err error) {
 	if len(buf) < FileHeaderSize {
 		return errors.New("FRM file too short")
 	}
@@ -237,18 +237,26 @@ func (m *ModuleEntries) FromBuffer(buf []byte) (err error) {
 	}
 	var ok bool
 
+	slowSearch := findKeySlow
+
+	if !allowSlowSearch {
+		slowSearch = func(block []byte) (key crypto.CustomKey, ok bool) {
+			return crypto.CustomKey{}, false
+		}
+	}
+
 	if m.HeaderEncrypted {
 		block := [8]byte(buf[m.Offset : m.Offset+8])
 		if m.CustomKey, ok = findKey(block, []byte("PROG0.00")); ok {
 
 		} else if m.CustomKey, ok = findKey(block, []byte("PROG")); ok {
 
-		} else if m.CustomKey, ok = findKeySlow(buf[m.Offset:]); ok {
+		} else if m.CustomKey, ok = slowSearch(buf[m.Offset:]); ok {
 
 		} else {
 			return errors.New("encryption key not found")
 		}
-	} else if m.CustomKey, ok = findKeySlow(buf[m.Offset:]); ok {
+	} else if m.CustomKey, ok = slowSearch(buf[m.Offset:]); ok {
 
 	} else {
 		//TODO

@@ -30,6 +30,7 @@ func main() {
 	patchForce := flag.Bool("patch-force", false, "patch force flag on MAIN. Update is applied regardless of version")
 	patchFormatHDD := flag.Bool("patch-format-hdd", false, "patch force flag on PROG. Formats HDD.")
 	repackForce := flag.Bool("repack-force", false, "force a repack and compression even if nothing was patched")
+	allowSlowSearch := flag.Bool("slow-key", false, "allow slow key search for very old firmware")
 
 	patchRaw := flag.String("patch-raw", "", "path to new binary data to patch into MAIN. Useful for kernel patching on fma4")
 	rawPartition := flag.Int("raw-partition", 4, "raw partition on MAIN data, for patching. 4 = fma4")
@@ -64,7 +65,7 @@ func main() {
 	}
 
 	var fw firmware.ModuleEntries
-	err = fw.FromBuffer(buf)
+	err = fw.FromBuffer(buf, *allowSlowSearch)
 	if err != nil {
 		panic(err)
 	}
@@ -660,7 +661,7 @@ func main() {
 		}()
 
 		var check firmware.ModuleEntries
-		if err = check.FromBuffer(buf); err != nil {
+		if err = check.FromBuffer(buf, *allowSlowSearch); err != nil {
 			panic(fmt.Errorf("MAIN verify: %w", err))
 		}
 		for i, mod := range check.Entries {
