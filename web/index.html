@@ -29,40 +29,130 @@
     <symbol id="info-circle" fill="currentColor" viewBox="0 0 16 16">
         <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2"/>
     </symbol>
+    <symbol id="internet-archive" fill="currentColor" viewBox="0 0 512 512">
+        <path d="m81 419h350v18h-350zm14-34h323v25h-323zm-2-284h321v35h-321zm319-10 10-11-169-39-168 39 10 11h158zm-273 154-1-51-3-47c0-2 0-2-2-2a67 67 0 0 0 -28 0c-1 0-2 0-2 2l-2 47a2223 2223 0 0 0 0 127l2 43 1 8 15 3c6-1 11-1 16-3l1-8 2-43a1616 1616 0 0 0 1-76zm88 0-2-51-2-47c0-2-1-2-2-2a67 67 0 0 0 -28 0c-2 0-2 0-2 2l-3 47a2223 2223 0 0 0 0 127l2 43 1 8c5 2 11 2 16 3l16-3v-8l2-43a1620 1620 0 0 0 2-76zm101 0-1-51-3-47c0-2 0-2-2-2a67 67 0 0 0 -28 0c-1 0-2 0-2 2l-2 47a2223 2223 0 0 0 0 127l2 43 1 8 15 3c5-1 11-1 16-3l1-8 2-43a1624 1624 0 0 0 1-76zm85 0-1-51-2-47c0-2-1-2-2-2a67 67 0 0 0 -29 0l-1 2-3 47a2227 2227 0 0 0 0 127l2 43 1 8c5 2 10 2 16 3l15-3 1-8 2-43a1620 1620 0 0 0 1-76z"/>
+    </symbol>
 </svg>
-<main class="container py-4" style="max-width: 52rem">
-    <div class="d-flex align-items-center mb-2">
-        <h1 class="h4 mb-0">Pana FW Repacker</h1>
-        <div class="dropdown ms-auto">
-            <button class="btn btn-sm btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Patch Presets</button>
-            <ul class="dropdown-menu dropdown-menu-end">
-                <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420 (International)</h6></li>
-                <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&patch-force=1">RegionFree CFW 1.82<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
-                <li><a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&flavor=asia&patch-force=1">RegionFree CFW 1.82 (Asiatic characters)<div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div></a></li>
 
-                <li><h6 class="dropdown-header">DP-UB9000 (Japan)</h6></li>
-                <li class="preset-item">
-                    <a class="dropdown-item" href="?config=presets/kernel-A8650-1.69.zip&patch-force=1">Kernel CPU Fix 1.69<div class="small text-body-secondary">by DreckSoft</div></a>
-                    <a class="dropdown-item preset-info" target="_blank" href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/page-45#post-31929649"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
+
+<nav class="navbar navbar-expand-md bg-body-tertiary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="#">Pana FW Repacker</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto mb-2 mb-md-0">
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        DP-UB9000/UB820/UB420
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420 (International)</h6></li>
+                        <!-- 1.82 CFW -->
+                        <li>
+                            <a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.82.zip&patch-force=1">
+                                RegionFree CFW 1.82
+                                <div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item small" href="?config=presets/cfw-A8640EU-1.82.zip&flavor=asia&patch-force=1">
+                                RegionFree CFW 1.82 (Asiatic characters)
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+
+                        <!-- 1.76 CFW -->
+                        <li>
+                            <a class="dropdown-item" href="?config=presets/cfw-A8640EU-1.76.zip&patch-force=1">
+                                RegionFree CFW 1.76
+                                <div class="small text-body-secondary">by DreckSoft, prodarek & msx42</div>
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item small" href="?config=presets/cfw-A8640EU-1.76.zip&flavor=asia&patch-force=1">
+                                RegionFree CFW 1.76 (Asiatic characters)
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+
+                        <li><h6 class="dropdown-header">DP-UB9000 (Japan)</h6></li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="?config=presets/kernel-A8650-1.69.zip&patch-force=1">Kernel CPU Fix 1.69<div class="small text-body-secondary">by DreckSoft</div></a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://www.avforums.com/threads/lets-try-again-to-put-the-free-in-regionfreedom.2441584/page-45#post-31929649"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Advanced Tools</h6></li>
+                        <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-nand-backup.zip&patch-force=1">USB NAND Backup<div class="small text-body-secondary">Backups NAND to NANDDUMP.BIN</div></a></li>
+                    </ul>
+                </li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Other
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><h6 class="dropdown-header">Generic Patches</h6></li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Runs boot scripts from USB</div></a>
+                            <a class="dropdown-item preset-info" target="_blank" href="@REPO@/src/commit/@COMMIT@/patch-presets/usb-hook.yml"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+
+                        <li><h6 class="dropdown-header">Development Only</h6></li>
+                        <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-mali-shim.zip&patch-force=1">QEMU libmali.so shim<div class="small text-body-secondary">For DP-UB9000/UB820/UB420.</div></a></li>
+                        <li><a class="dropdown-item" href="?config=presets/dev-A6610-A6620-recs-shim.zip&patch-force=1">QEMU librecs_mgl.so shim<div class="small text-body-secondary">For DP-UB900/UB700.</div></a></li>
+                    </ul>
                 </li>
 
-                <li><hr class="dropdown-divider"></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        Firmware
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><h6 class="dropdown-header">DP-UB9000/UB820/UB420 (International)</h6></li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V185.zip">Firmware 1.85</a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://web.archive.org/web/20261027011524if_/https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V185.zip"><svg class="bi" width="16" height="16"><use xlink:href="#internet-archive"/></svg></a>
+                        </li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V1.82.zip">Firmware 1.82</a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://web.archive.org/web/20261027011346if_/https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V1.82.zip"><svg class="bi" width="16" height="16"><use xlink:href="#internet-archive"/></svg></a>
+                        </li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V176.zip">Firmware 1.76</a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://web.archive.org/web/20261108163037if_/https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V176.zip"><svg class="bi" width="16" height="16"><use xlink:href="#internet-archive"/></svg></a>
+                        </li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V169.zip">Firmware 1.69</a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://web.archive.org/web/20261108163119if_/https://fdl.jpn.support.panasonic.com/pc/en/bd/ub420/UPDATE_UB420_UB820_UB9000_V169.zip"><svg class="bi" width="16" height="16"><use xlink:href="#internet-archive"/></svg></a>
+                        </li>
 
-                <li><h6 class="dropdown-header">Advanced usage</h6></li>
-                <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-nand-backup.zip&patch-force=1">USB NAND Backup<div class="small text-body-secondary">For DP-UB9000/UB820/UB420 models only.<br/> Backups NAND to NANDDUMP.BIN</div></a></li>
-                <li class="preset-item">
-                    <a class="dropdown-item" href="?config=presets/usb-hook.yml&patch-force=1">USB startup hook<div class="small text-body-secondary">Runs boot scripts from USB</div></a>
-                    <a class="dropdown-item preset-info" target="_blank" href="@REPO@/src/commit/@COMMIT@/patch-presets/usb-hook.yml"><svg class="bi" width="16" height="16"><use xlink:href="#info-circle"/></svg></a>
+                        <li><h6 class="dropdown-header">DP-UB9000 (Japan)</h6></li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="https://fdl.jpn.support.panasonic.com/pc/jp/bd/ub9000/UPDATE_UB9000_5.zip">Firmware 1.69</a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://web.archive.org/web/20261108164152if_/https://fdl.jpn.support.panasonic.com/pc/jp/bd/ub9000/UPDATE_UB9000_5.zip"><svg class="bi" width="16" height="16"><use xlink:href="#internet-archive"/></svg></a>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+
+                        <li><h6 class="dropdown-header">DP-UB900/UB700 (Europe/UK)</h6></li>
+                        <li class="preset-item">
+                            <a class="dropdown-item" href="https://fdl.jpn.support.panasonic.com/pc/en/bd/ub900/UPDATE_UB900_700P_E_G_V180.exe">Firmware 1.80</a>
+                            <a class="dropdown-item preset-info" target="_blank" href="https://web.archive.org/web/20261108163450if_/https://fdl.jpn.support.panasonic.com/pc/en/bd/ub900/UPDATE_UB900_700P_E_G_V180.exe"><svg class="bi" width="16" height="16"><use xlink:href="#internet-archive"/></svg></a>
+                        </li>
+                    </ul>
                 </li>
-
-                <li><hr class="dropdown-divider"></li>
-
-                <li><h6 class="dropdown-header">Development Only</h6></li>
-                <li><a class="dropdown-item" href="?config=presets/dev-A8640-A8650-mali-shim.zip&patch-force=1">QEMU libmali.so shim<div class="small text-body-secondary">For DP-UB9000/UB820/UB420.</div></a></li>
-                <li><a class="dropdown-item" href="?config=presets/dev-A6610-A6620-recs-shim.zip&patch-force=1">QEMU librecs_mgl.so shim<div class="small text-body-secondary">For DP-UB900/UB700.</div></a></li>
             </ul>
         </div>
     </div>
+</nav>
+
+<main class="container py-4" style="max-width: 52rem">
     <p class="text-body-primary mb-3">
         Patch supported player firmware files for customization and recovery.
     </p>
