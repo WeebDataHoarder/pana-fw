@@ -305,6 +305,8 @@ class Wasi {
                                return ERRNO.SUCCESS;
                        },
                        path_remove_directory: () => ERRNO.NOTSUP,
+                       sock_recv: () => ERRNO.NOTSUP,
+                       sock_send: () => ERRNO.NOTSUP,
                };
        }
 }

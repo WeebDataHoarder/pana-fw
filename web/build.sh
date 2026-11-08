@@ -10,6 +10,11 @@ GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" CGO_ENABLED=0 GOOS=wasip1 GOARCH=wa
         go build -trimpath -buildvcs=false -ldflags="-s -w -buildid=" -v \
         -o "$out/repack-firmware.wasm" ./cmd/repack-firmware
 
+if [ "${USE_TINYGO-0}" == "1" ]; then
+  GOTOOLCHAIN="go$(sed -n 's/^go //p' go.mod)" CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm \
+          tinygo build -trimpath -buildvcs=false -opt=2 -no-debug \
+          -o "$out/repack-firmware.wasm" ./cmd/repack-firmware
+fi
 
 commit=$(git rev-parse HEAD 2>/dev/null || echo unknown)
 date=$(git log -1 --format=%cs 2>/dev/null || echo unknown)
@@ -21,13 +26,15 @@ cp web/worker.js "$out/"
 
 if [ ! -d "$out/presets" ]; then
   mkdir "$out/presets"
+else
+  rm -r "$out/presets/"*
 fi
 
 for f in patch-presets/*; do
   if [ -d "${f}" ]; then
     presetName=$(basename "${f}")
     pushd "${f}"
-    zip -r -9 -o "../../$out/presets/${presetName}.zip" .
+    zip -r -9 -o -X "../../$out/presets/${presetName}.zip" .
     popd
   else
     cp -v "${f}" "$out/presets"
