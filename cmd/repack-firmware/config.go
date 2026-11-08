@@ -525,6 +525,17 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 			}
 			fs.AddDir(e.Path, mode, uid, gid)
 			changed = true
+		case "link":
+			if fe != nil {
+				uid = uint16(e.argInt("uid", int(fe.Inode.UserID)))
+				gid = uint8(e.argInt("gid", int(fe.Inode.GroupID)))
+			}
+			target := e.argString("target", "")
+			if target == "" {
+				return errors.New("no target specified")
+			}
+			fs.AddSymlink(e.Path, target, uid, gid)
+			changed = true
 		default:
 			var data []byte
 
@@ -589,6 +600,13 @@ func (cfg *RepackConfig) PatchROMFS(fs *romfs.RomFS, m []FilePatchEntry) error {
 			}
 		case "mkdir":
 			fs.AddDir(e.Path)
+			changed = true
+		case "link":
+			target := e.argString("target", "")
+			if target == "" {
+				return errors.New("no target specified")
+			}
+			fs.AddSymlink(e.Path, target)
 			changed = true
 		default:
 			var data []byte
