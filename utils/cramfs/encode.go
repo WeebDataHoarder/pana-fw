@@ -116,15 +116,19 @@ func (fs *CramFS) ReadTree() error {
 	fs.Tree = &tree
 	return nil
 }
-
-func (fs *CramFS) ensureDir(dirPath string) {
+func (fs *CramFS) ensureDir(dirPath string) error {
 	dirPath = path.Clean(dirPath)
 	if dirPath == "/" || dirPath == "." || dirPath == "" {
-		return
+		return nil
 	}
-	fs.ensureDir(path.Dir(dirPath))
-	if findEntry(fs.Tree, dirPath) != nil {
-		return
+	if err := fs.ensureDir(path.Dir(dirPath)); err != nil {
+		return err
+	}
+	if e := findEntry(fs.Tree, dirPath); e != nil {
+		if !e.Inode.IsDir() {
+			return fmt.Errorf("%s: %w", dirPath, errNoDir)
+		}
+		return nil
 	}
 	parent := findEntry(fs.Tree, path.Dir(dirPath))
 	e := InodeEntry{
@@ -134,6 +138,7 @@ func (fs *CramFS) ensureDir(dirPath string) {
 	initInodeExtra(&e.Inode, path.Base(dirPath))
 	parent.Children = append(parent.Children, e)
 	parent.ChildrenCount++
+	return nil
 }
 
 func addOrReplaceInode(parent *InodeEntry, name, fullPath string, inode Inode, file [][]byte, link string) {
@@ -161,10 +166,12 @@ func (fs *CramFS) FindEntry(p string) *InodeEntry {
 
 // AddFile adds or replaces a regular file.
 // Unchanged blocks preserve their original compressed data
-func (fs *CramFS) AddFile(filePath string, data []byte, mode, uid uint16, gid uint8) {
+func (fs *CramFS) AddFile(filePath string, data []byte, mode, uid uint16, gid uint8) error {
 	filePath = path.Clean(filePath)
 	fs.ensureTree()
-	fs.ensureDir(path.Dir(filePath))
+	if err := fs.ensureDir(path.Dir(filePath)); err != nil {
+		return err
+	}
 
 	parent := findEntry(fs.Tree, path.Dir(filePath))
 	name := path.Base(filePath)
@@ -175,7 +182,7 @@ func (fs *CramFS) AddFile(filePath string, data []byte, mode, uid uint16, gid ui
 			e.Inode.UserID = uid
 			e.Inode.GroupID = gid
 			e.SetFileData(data)
-			return
+			return nil
 		}
 	}
 	e := InodeEntry{
@@ -190,19 +197,22 @@ func (fs *CramFS) AddFile(filePath string, data []byte, mode, uid uint16, gid ui
 	e.SetFileData(data)
 	parent.Children = append(parent.Children, e)
 	parent.ChildrenCount++
+	return nil
 }
 
 // AddDir creates a directory and its parents
-func (fs *CramFS) AddDir(dirPath string, mode, uid uint16, gid uint8) {
+func (fs *CramFS) AddDir(dirPath string, mode, uid uint16, gid uint8) error {
 	dirPath = path.Clean(dirPath)
 	fs.ensureTree()
-	fs.ensureDir(path.Dir(dirPath))
+	if err := fs.ensureDir(path.Dir(dirPath)); err != nil {
+		return err
+	}
 
 	if e := findEntry(fs.Tree, dirPath); e != nil {
 		e.Inode.Mode = 0040000 | (mode & 07777)
 		e.Inode.UserID = uid
 		e.Inode.GroupID = gid
-		return
+		return nil
 	}
 	parent := findEntry(fs.Tree, path.Dir(dirPath))
 	addOrReplaceInode(parent,
@@ -213,12 +223,15 @@ func (fs *CramFS) AddDir(dirPath string, mode, uid uint16, gid uint8) {
 			GroupID: gid,
 		},
 		nil, "")
+	return nil
 }
 
-func (fs *CramFS) AddSymlink(filePath, target string, uid uint16, gid uint8) {
+func (fs *CramFS) AddSymlink(filePath, target string, uid uint16, gid uint8) error {
 	filePath = path.Clean(filePath)
 	fs.ensureTree()
-	fs.ensureDir(path.Dir(filePath))
+	if err := fs.ensureDir(path.Dir(filePath)); err != nil {
+		return err
+	}
 
 	parent := findEntry(fs.Tree, path.Dir(filePath))
 	name := path.Base(filePath)
@@ -233,7 +246,7 @@ func (fs *CramFS) AddSymlink(filePath, target string, uid uint16, gid uint8) {
 				e.Inode.Size = uint32(len(target))
 				e.RawBlocks = nil
 			}
-			return
+			return nil
 		}
 	}
 	addOrReplaceInode(parent,
@@ -245,21 +258,24 @@ func (fs *CramFS) AddSymlink(filePath, target string, uid uint16, gid uint8) {
 			GroupID: gid,
 		},
 		nil, target)
+	return nil
 }
 
-func (fs *CramFS) AddBlockDevice(filePath string, major, minor uint8) {
-	fs.addSpecial(filePath, 0060000, major, minor)
+func (fs *CramFS) AddBlockDevice(filePath string, major, minor uint8) error {
+	return fs.addSpecial(filePath, 0060000, major, minor)
 }
-func (fs *CramFS) AddCharDevice(filePath string, major, minor uint8) {
-	fs.addSpecial(filePath, 0020000, major, minor)
+func (fs *CramFS) AddCharDevice(filePath string, major, minor uint8) error {
+	return fs.addSpecial(filePath, 0020000, major, minor)
 }
-func (fs *CramFS) AddSocket(filePath string) { fs.addSpecial(filePath, 0140000, 0, 0) }
-func (fs *CramFS) AddFIFO(filePath string)   { fs.addSpecial(filePath, 0010000, 0, 0) }
+func (fs *CramFS) AddSocket(filePath string) error { return fs.addSpecial(filePath, 0140000, 0, 0) }
+func (fs *CramFS) AddFIFO(filePath string) error   { return fs.addSpecial(filePath, 0010000, 0, 0) }
 
-func (fs *CramFS) addSpecial(filePath string, typeBits uint16, major, minor uint8) {
+func (fs *CramFS) addSpecial(filePath string, typeBits uint16, major, minor uint8) error {
 	filePath = path.Clean(filePath)
 	fs.ensureTree()
-	fs.ensureDir(path.Dir(filePath))
+	if err := fs.ensureDir(path.Dir(filePath)); err != nil {
+		return err
+	}
 	parent := findEntry(fs.Tree, path.Dir(filePath))
 	addOrReplaceInode(parent,
 		path.Base(filePath), filePath,
@@ -268,6 +284,7 @@ func (fs *CramFS) addSpecial(filePath string, typeBits uint16, major, minor uint
 			Size: (uint32(major) << 8) | uint32(minor),
 		},
 		nil, "")
+	return nil
 }
 
 // Remove deletes the entry at filePath and its descendants

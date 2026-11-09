@@ -1,0 +1,19 @@
+# libapl_envlib.so: ACE ColorKeyGuide hi-clarity unlock via ENABLE_SKYP
+objects:
+  envlib: src/libapl_envlib.o
+caves:
+  - slack: {}
+pokes:
+  # The original patch reused this body for its stub, leaving a return-0.
+  - name: neutralize-hyoji-remocon
+    anchor: { export: APL_ENV_IsHYOJIRemoconModel }
+    write: "00 20 70 47" # movs r0,#0 ; bx lr
+edits:
+  - name: hiclarity-unlock
+    anchor: { export: APL_ENV_IsEnable_ACE_ColorKeyGuide_hiclarity }
+    at: { offset: 0 }
+    action: detour
+    object: envlib
+    entry: apl_env_hiclarity
+    externals:
+      APL_ENV_IsUB820_420: { export: APL_ENV_IsUB820_420 }

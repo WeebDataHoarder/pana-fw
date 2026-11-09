@@ -3,6 +3,8 @@ package lang
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"math"
 )
 
 type Record struct {
@@ -38,14 +40,14 @@ func (r *Record) SetCellsString(s []string) error {
 	}
 
 	if r.IsJapanese() {
-		for i, c := range r.Cells {
-			if err := c.ToEUCJP(s[i]); err != nil {
+		for i := range r.Cells {
+			if err := r.Cells[i].ToEUCJP(s[i]); err != nil {
 				return err
 			}
 		}
 	} else {
-		for i, c := range r.Cells {
-			if err := c.ToUTF8(s[i]); err != nil {
+		for i := range r.Cells {
+			if err := r.Cells[i].ToUTF8(s[i]); err != nil {
 				return err
 			}
 		}
@@ -109,7 +111,11 @@ func (r *Record) MarshalBinary() (buf []byte, err error) {
 
 	offset := 0
 	for i, c := range cells {
-		binary.LittleEndian.PutUint16(buf[i*2:], uint16(2*len(cells)+offset-2*i))
+		relative := 2*len(cells) + offset - 2*i
+		if relative > math.MaxUint16 {
+			return nil, fmt.Errorf("record %q is too large: cell offset %d exceeds 16 bits", r.Label, relative)
+		}
+		binary.LittleEndian.PutUint16(buf[i*2:], uint16(relative))
 		cellBuf, err := c.MarshalBinary()
 		if err != nil {
 			return nil, err

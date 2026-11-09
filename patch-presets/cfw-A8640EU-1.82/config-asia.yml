@@ -42,40 +42,40 @@ kernel:
       block-splitting-max: 32
 
 cramfs0:
-  # Patches fma5 with xdelta3
+  # Patches fma5 (/sbin/init) via the elfpatch framework
   - path: /sbin/init
-    action: xdelta
-    file: init.patch
+    action: elf
+    file: init.elf.yml
 
 cramfs1:
   # Patches fma7 with xdelta3
   - path: /dtvrec/bin/apl_bdv
-    action: xdelta
-    file: apl_bdv.patch
+    action: elf
+    file: apl_bdv.elf.yml
   - path: /dtvrec/bin/apl_dispsrv
-    action: xdelta
-    file: apl_dispsrv.patch
+    action: elf
+    file: apl_dispsrv.elf.yml
   - path: /dtvrec/data/lang/apl_lang.dat
     action: lang
     file: apl_lang.dat.yml
   - path: /dtvrec/bin/apl_meda_bdplay
-    action: xdelta
-    file: apl_meda_bdplay.patch.asia
+    action: elf
+    file: apl_meda_bdplay.asia.elf.yml
   - path: /dtvrec/bin/apl_meda_dvdv
-    action: xdelta
-    file: apl_meda_dvdv.patch
+    action: elf
+    file: apl_meda_dvdv.elf.yml
   - path: /dtvrec/bin/apl_mgr
-    action: xdelta
-    file: apl_mgr.patch
+    action: elf
+    file: apl_mgr.elf.yml
   - path: /dtvrec/lib/libapl_envlib.so
-    action: xdelta
-    file: libapl_envlib.so.patch
+    action: elf
+    file: libapl_envlib.so.elf.yml
   - path: /dtvrec/lib/libnavi_api.so
-    action: xdelta
-    file: libnavi_api.so.patch
+    action: elf
+    file: libnavi_api.so.elf.yml
   - path: /dtvrec/bin/thttpd
-    action: xdelta
-    file: thttpd.patch
+    action: elf
+    file: thttpd.elf.yml
 
   # Adds Region Free text image below Panasonic logo
   - path: /dtvrec/data/rui/ace001/portal/resource/images/BDP_wallpaper_black.png

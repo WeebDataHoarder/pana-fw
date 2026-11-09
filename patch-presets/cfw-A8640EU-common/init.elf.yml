@@ -1,0 +1,57 @@
+# init: boot-time feature-table and region overrides.
+# Statically linked, so helpers and data are given by address; 1.76 and 1.82 are
+# byte-identical. The cave is an unreferenced hardware self-test routine.
+objects:
+  feat: src/init_feat.o
+  addr: src/init_addr.o
+caves:
+  - range: { start: 0x1166c, end: 0x11990, expect: "2d e9 f0 4f 89 b0 dd f8 48 90" }
+pokes:
+  # Shorten four feature names to the keys init_feat.c and the other stubs use.
+  - { name: trunc-modem,    anchor: { string: "ENABLE_MODEM" },    at: { offset: 11 }, write: "00" }
+  - { name: trunc-skypeled, anchor: { string: "ENABLE_SKYPELED" }, at: { offset: 11 }, write: "00" }
+  - { name: trunc-radiorec, anchor: { string: "ENABLE_RADIOREC" }, at: { offset: 10 }, write: "00" }
+  - { name: trunc-battery,  anchor: { string: "ENABLE_BATTERY" },  at: { offset: 13 }, write: "00" }
+edits:
+  # Displaces ldr r5,[r7,#0x1c]; ldr r3,[sp,#4]; ldr r4,[r7,#0x20]
+  - name: feature
+    anchor: { va: 0x11abe, expect: "fd 69 01 9b 3c 6a 9d 42" }
+    action: hook
+    ctx: true
+    object: feat
+    entry: init_feat
+    cover: 6
+    externals:
+      strcmp:   { va: 0x12479, expect: "42 1e 00 e0 48 b1 12 f8 01 0f" }
+      EEP_read: { va: 0x1145d, expect: "2d e9 f0 43 8b b0 81 46" }
+      REGION:   { va: 0x2b30c, used_by: { va: 0x1184a, expect: "c0 f2 02 0b 02 eb 09 04" } }
+      # Resolved before the pokes above, so these see the full names.
+      ENABLE_PAL:            { string: "ENABLE_PAL" }
+      ENABLE_MODEM:          { string: "ENABLE_MODEM" }
+      ENABLE_BATTERY:        { string: "ENABLE_BATTERY" }
+      ENABLE_RADIOREC:       { string: "ENABLE_RADIOREC" }
+      ENABLE_SKYPELED:       { string: "ENABLE_SKYPELED" }
+      ENABLE_HDR_METADATA:   { string: "ENABLE_HDR_METADATA" }
+      ENABLE_HDR_PROJECTOR:  { string: "ENABLE_HDR_PROJECTOR" }
+      ENABLE_SYSTEM_GAMMA:   { string: "ENABLE_SYSTEM_GAMMA" }
+      ENABLE_AVI:            { string: "ENABLE_AVI" }
+      ENABLE_BD_SRT_TEXT:    { string: "ENABLE_BD_SRT_TEXT" }
+      ENABLE_AFULL_SUNSET:   { string: "ENABLE_AFULL_SUNSET" }
+      ENABLE_AACS_AWM:       { string: "ENABLE_AACS_AWM" }
+      ENABLE_HIGH_END_PLAYER: { string: "ENABLE_HIGH_END_PLAYER" }
+      ENABLE_CLOSED_CAPTION: { string: "ENABLE_CLOSED_CAPTION" }
+      ENABLE_AAC_MCH:        { string: "ENABLE_AAC_MCH" }
+      ENABLE_DTCP2:          { string: "ENABLE_DTCP2" }
+      ENABLE_DVDCPRM:        { string: "ENABLE_DVDCPRM" }
+      ENABLE_RUICLIENT:      { string: "ENABLE_RUICLIENT" }
+
+  # Displaces the movt r3,#1 completing the &"N" pointer.
+  - name: flag
+    anchor: { va: 0x11db6, expect: "c0 f2 01 03 1b 88 2b 52 da f8 00 30 49 f2 54 52" }
+    action: hook
+    ctx: true
+    object: addr
+    entry: init_addr
+    cover: 4
+    externals:
+      EEP_read: { va: 0x1145d, expect: "2d e9 f0 43 8b b0 81 46" }

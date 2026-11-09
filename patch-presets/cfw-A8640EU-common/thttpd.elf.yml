@@ -1,0 +1,14 @@
+# thttpd: web authentication bypass
+pokes:
+  - name: auth-jump-1
+    anchor: { strxref: "%s():%d - Authentication Succeeded." }
+    at: { pattern: "41 f2 bb 32" }
+    write: "99 e0 00 00"
+  - name: auth-jump-2
+    anchor: { strxref: "%s():%d - Authentication Succeeded." }
+    at: { pattern: "35 4a" }
+    write: "67 e7"
+  - name: auth-flag
+    anchor: { strxref: "%s():%d - Authentication Succeeded." }
+    at: { pattern: "01 23 33 70 3d" }
+    write: "00"

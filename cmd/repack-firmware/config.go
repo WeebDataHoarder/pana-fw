@@ -11,14 +11,17 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"io/fs"
 	"math"
 	"os"
 	"path"
 	"slices"
+	"strings"
 
 	"git.gammaspectra.live/WeebDataHoarder/go-zopfli/zopfli"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/cramfs"
+	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/elfpatch"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/firmware"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/lang"
 	"git.gammaspectra.live/WeebDataHoarder/pana-fw/utils/romfs"
@@ -154,14 +157,34 @@ func (e *FilePatchEntry) Apply(opener func(p string) (io.ReadCloser, error), dat
 			return nil, err
 		}
 
+	case "elf", "elfpatch":
+		if contentBuf == nil {
+			return nil, fmt.Errorf("missing file or hex content arg")
+		}
+		var ps elfpatch.PatchSet
+		if err := yaml.UnmarshalWithOptions(contentBuf, &ps, yaml.DisallowUnknownField()); err != nil {
+			return nil, fmt.Errorf("parse elf-patch config: %w", err)
+		}
+		out, err = ps.Apply(data, func(p string) ([]byte, error) {
+			f, err := opener(p)
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			return io.ReadAll(f)
+		})
+		if err != nil {
+			return nil, err
+		}
+
 	// for /dtvrec/data/lang/apl_lang.dat
 	case "lang":
 		if contentBuf == nil {
 			return nil, fmt.Errorf("missing file or hex content arg")
 		}
 		var langConfig []LangConfigEntry
-		if err := yaml.Unmarshal(contentBuf, &langConfig); err != nil {
-			return nil, err
+		if err := yaml.UnmarshalWithOptions(contentBuf, &langConfig, yaml.DisallowUnknownField()); err != nil {
+			return nil, fmt.Errorf("parse lang config: %w", err)
 		}
 		var langFile lang.File
 		if err = langFile.UnmarshalBinary(data); err != nil {
@@ -523,7 +546,9 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 				uid = uint16(e.argInt("uid", int(fe.Inode.UserID)))
 				gid = uint8(e.argInt("gid", int(fe.Inode.GroupID)))
 			}
-			fs.AddDir(e.Path, mode, uid, gid)
+			if err := fs.AddDir(e.Path, mode, uid, gid); err != nil {
+				return err
+			}
 			changed = true
 		case "link":
 			if fe != nil {
@@ -534,7 +559,9 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 			if target == "" {
 				return errors.New("no target specified")
 			}
-			fs.AddSymlink(e.Path, target, uid, gid)
+			if err := fs.AddSymlink(e.Path, target, uid, gid); err != nil {
+				return err
+			}
 			changed = true
 		default:
 			var data []byte
@@ -571,11 +598,15 @@ func (cfg *RepackConfig) PatchCRAMFS(fs *cramfs.CramFS, m []FilePatchEntry) erro
 			}
 
 			if newData != nil && !bytes.Equal(data, newData) {
-				fs.AddFile(e.Path, newData, mode, uid, gid)
+				if err := fs.AddFile(e.Path, newData, mode, uid, gid); err != nil {
+					return err
+				}
 				changed = true
 			} else if changed {
 				// chmod
-				fs.AddFile(e.Path, data, mode, uid, gid)
+				if err := fs.AddFile(e.Path, data, mode, uid, gid); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -656,7 +687,10 @@ var errNoZip = errors.New("no zip found")
 func parseRepackZIP(buf []byte, flavor string) (*RepackConfig, error) {
 	r, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf)))
 	if err != nil {
-		return nil, errors.Join(errNoZip)
+		if bytes.HasPrefix(buf, []byte{'P', 'K', 0x03, 0x04}) {
+			return nil, fmt.Errorf("read preset ZIP: %w", err)
+		}
+		return nil, errNoZip
 	}
 
 	configPath := "config.yml"
@@ -710,13 +744,42 @@ func ParseRepackConfig(filePath, flavor string) (*RepackConfig, error) {
 	}
 
 	base := path.Dir(filePath)
+	dirs, err := presetSearchDirs(base)
+	if err != nil {
+		return nil, err
+	}
 	cfg.opener = func(pathStr string) (io.ReadCloser, error) {
 		// this can use absolute/relative filepaths outside of the config location, intended
-		if !path.IsAbs(pathStr) {
-			return os.Open(path.Join(base, pathStr))
-		} else {
+		if path.IsAbs(pathStr) {
 			return os.Open(pathStr)
 		}
+		var firstErr error
+		for _, dir := range dirs {
+			f, err := os.Open(path.Join(dir, pathStr))
+			if err == nil || !errors.Is(err, fs.ErrNotExist) {
+				return f, err
+			}
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+		return nil, firstErr
 	}
 	return &cfg, nil
+}
+
+// presetSearchDirs returns base followed by the sibling directories named in
+// its .include file, mirroring how web/build.sh flattens presets into a ZIP.
+func presetSearchDirs(base string) ([]string, error) {
+	dirs := []string{base}
+	buf, err := os.ReadFile(path.Join(base, ".include"))
+	if errors.Is(err, fs.ErrNotExist) {
+		return dirs, nil
+	} else if err != nil {
+		return nil, err
+	}
+	for _, inc := range strings.Fields(string(buf)) {
+		dirs = append(dirs, path.Join(base, "..", inc))
+	}
+	return dirs, nil
 }

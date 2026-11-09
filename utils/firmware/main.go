@@ -110,11 +110,15 @@ func NewMainListWithCompression(data []byte, sumFunc func([]byte) uint32, key *c
 					}
 					defer w.Close()
 
-					// set flags as original, except time
-					w.Header.ModTime = time.Now().UTC()
-					w.Header.OS = 3
-					// pattern seen on regular firmware
-					w.Header.Name = fmt.Sprintf("bank.rom.in%d.s", partNumber)
+					if template != nil && len(template.Segments) > partNumber && template.Segments[partNumber].DecompressedGZIPHeader != nil {
+						w.Header = *template.Segments[partNumber].DecompressedGZIPHeader
+					} else {
+						// set flags as original, except time
+						w.Header.ModTime = time.Now().UTC()
+						w.Header.OS = 3
+						// pattern seen on regular firmware
+						w.Header.Name = fmt.Sprintf("bank.rom.in%d.s", partNumber)
+					}
 
 					if _, err = w.Write(part); err != nil {
 						return err
@@ -335,9 +339,10 @@ const CompressedFileFooterMagic = "EXTRFOOT"
 type CompressedFile struct {
 	Header CompressedFileHeader
 	// RawData Raw encoded data
-	RawData      []byte
-	Decompressed []byte
-	Child        *CompressedFile
+	RawData                []byte
+	Decompressed           []byte
+	DecompressedGZIPHeader *gzip.Header
+	Child                  *CompressedFile
 }
 
 func (f *CompressedFile) InnerData() []byte {
@@ -359,7 +364,17 @@ func (f *CompressedFile) ToBuffer() (buf []byte, err error) {
 	return buf, nil
 }
 
+const maxCompressedFileNesting = 8
+
 func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (err error) {
+	return f.fromBuffer(buf, sumFunc, 0)
+}
+
+func (f *CompressedFile) fromBuffer(buf []byte, sumFunc func([]byte) uint32, depth int) (err error) {
+	if depth > maxCompressedFileNesting {
+		return errors.New("compressed files nested too deeply")
+	}
+
 	// multiple segments
 	if _, err := binary.Decode(buf, binary.LittleEndian, &f.Header); err != nil {
 		return err
@@ -378,6 +393,10 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 		return errors.New("expected compressed flag, got 0")
 	}
 
+	if f.Header.ChecksumSkip == 0 {
+		return errors.New("checksum skip is zero")
+	}
+
 	switch CompressionType(f.Header.CompressionType) {
 	case CompressionTypeLZSS:
 		f.Decompressed, err = lzss.Decompress(f.RawData, 0, int(f.Header.DestinationSize))
@@ -390,12 +409,13 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 			return err
 		}
 		defer gz.Close()
+		f.DecompressedGZIPHeader = new(gz.Header)
 		f.Decompressed, err = io.ReadAll(gz)
 		if err != nil {
 			return err
 		}
 	case CompressionTypeNone:
-		f.Decompressed = buf
+		f.Decompressed = f.RawData
 	default:
 		return errors.New("invalid compression type")
 	}
@@ -406,7 +426,7 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 
 	var cksumBuf []byte
 
-	for i := 0; i < len(f.Decompressed); i += int(f.Header.ChecksumSkip) {
+	for i := uint64(0); i < uint64(len(f.Decompressed)); i += uint64(f.Header.ChecksumSkip) {
 		cksumBuf = append(cksumBuf, f.Decompressed[i])
 	}
 
@@ -416,7 +436,7 @@ func (f *CompressedFile) FromBuffer(buf []byte, sumFunc func([]byte) uint32) (er
 
 	if bytes.Equal(f.Decompressed[:len(CompressedFileHeaderMagic)], []byte(CompressedFileHeaderMagic)) {
 		var child CompressedFile
-		if err = child.FromBuffer(f.Decompressed, sumFunc); err != nil {
+		if err = child.fromBuffer(f.Decompressed, sumFunc, depth+1); err != nil {
 			return fmt.Errorf("could not decompress children: %w", err)
 		}
 		f.Child = &child

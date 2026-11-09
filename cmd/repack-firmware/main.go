@@ -32,6 +32,7 @@ func main() {
 	repackForce := flag.Bool("repack-force", false, "force a repack and compression even if nothing was patched")
 	allowSlowSearch := flag.Bool("slow-key", false, "allow slow key search for very old firmware")
 
+	resizePartitions := flag.String("resize-partitions", "", "comma-separated new partition sizes held in MAIN, such as fma5=24576k,fma7=139264k. The total must not change")
 	patchRaw := flag.String("patch-raw", "", "path to new binary data to patch into MAIN. Useful for kernel patching on fma4")
 	rawPartition := flag.Int("raw-partition", 4, "raw partition on MAIN data, for patching. 4 = fma4")
 
@@ -194,8 +195,23 @@ func main() {
 			data := ml.Data
 			patched := *repackForce
 
-			parts, err := firmware.SplitPartitions(data, firmware.MainPartitionSplitCharacter)
+			if *resizePartitions != "" {
+				sizes, err := firmware.ParsePartitionSizes(*resizePartitions)
+				if err != nil {
+					panic(fmt.Errorf("-resize-partitions: %w", err))
+				}
+				if data, err = firmware.ResizePartitions(data, sizes); err != nil {
+					panic(fmt.Errorf("resize partitions: %w", err))
+				}
+				fmt.Printf("MAIN: resized %s\n", *resizePartitions)
+				patched = true
+			}
 
+			table, err := firmware.ParseCommandLine(data)
+			if err != nil {
+				panic(fmt.Errorf("failed to parse partitions: %w", err))
+			}
+			parts, err := firmware.SplitPartitions(data, table)
 			if err != nil {
 				panic(fmt.Errorf("failed to split partitions: %w", err))
 			}

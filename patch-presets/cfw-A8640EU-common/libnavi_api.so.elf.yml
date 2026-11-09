@@ -1,0 +1,13 @@
+# libnavi_api.so: battery/region constant override via ENABLE_BATTER
+objects:
+  navi: src/libnavi_api.o
+caves:
+  # the DMA-mutex helper the original patch also reused
+  - reclaim: { strxref: "[DCS]DMA MUTEX other_task enter dma mutex. (mutex flag=%d)" }
+edits:
+  - name: battery-const
+    anchor: { pattern: "0f 20 ca f2 08 00 03 b0" } # the constant load, disambiguated
+    at: { pattern: "0f 20 ca f2 08 00" }          # movs r0,#0xf ; movt r0,#0xa008
+    action: call
+    object: navi
+    entry: navi_battery_hook

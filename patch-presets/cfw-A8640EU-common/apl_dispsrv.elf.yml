@@ -1,0 +1,5 @@
+# apl_dispsrv: blank the "HIGH CLARITY SOUND ON(V.ON)" OSD string
+pokes:
+  - name: blank-hiclarity-osd
+    anchor: { string: "HIGH CLARITY SOUND ON(V.ON)" }
+    write: "20 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"

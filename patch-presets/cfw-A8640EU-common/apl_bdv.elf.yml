@@ -1,0 +1,35 @@
+# apl_bdv: modem-id blanking (ENABLE_MODE) and region override (ENABLE_RAD)
+objects:
+  modem: src/apl_bdv_modem.o
+  region: src/apl_bdv_region.o
+caves:
+  - slack: {}
+edits:
+  - name: modem-blank-a
+    anchor: { pattern: "c6 e9 00 23 dd e7" } # strd r2,r3,[r6] ; b
+    at: { pattern: "c6 e9 00 23" }
+    action: hook
+    ctx: true
+    object: modem
+    entry: bdv_modem_a
+
+  - name: modem-blank-b
+    anchor: { pattern: "dd e9 12 23 09 f1" } # ldrd r2,r3,[sp,#0x48] ; add.w
+    at: { pattern: "dd e9 12 23" }
+    action: hook
+    ctx: true
+    object: modem
+    entry: bdv_modem_b
+
+  - name: region-override
+    anchor: { pattern: "48 f2 8c 60 c0 f2 30 00 f2 f7 10 ef" } # movw/movt r0,#&MODEL ; blx getenv
+    at: { pattern: "48 f2 8c 60 c0 f2 30 00" }
+    action: hook
+    ctx: true
+    object: region
+    entry: bdv_region
+    externals:
+      MODEL_AREA_REAL: { string: "MODEL_AREA_REAL" }
+    returns:
+      # index 1: the host epilogue (pop {r4-r8,pc}); per-build address
+      - { va: 0x4a57b, expect: "bd e8 f0 81 4a f2 20 40 40 f2 d6 42" }

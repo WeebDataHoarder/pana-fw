@@ -22,6 +22,9 @@ func Decode(data, delta []byte) (out []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(parsed.Windows) == 0 {
+		return nil, errors.New("delta has no windows")
+	}
 	for _, w := range parsed.Windows {
 		if !w.HasChecksum {
 			return nil, errors.New("delta has no checksum, cannot be verified")

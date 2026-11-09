@@ -85,6 +85,9 @@ func (t *transcoder) rewriteHeader(out *bytes.Buffer) error {
 		if appHeaderSize, err = readVarInt(t.r); err != nil {
 			return err
 		}
+		if int64(appHeaderSize) > int64(t.r.Len()) {
+			return io.ErrUnexpectedEOF
+		}
 		if _, err := t.r.Seek(int64(appHeaderSize), io.SeekCurrent); err != nil {
 			return io.ErrUnexpectedEOF
 		}

@@ -48,6 +48,7 @@ func (e LangConfigEntry) Patch(f *lang.File) error {
 
 	if len(targets) == 0 {
 		// allow directly matching strings, slow
+		var matched bool
 		if len(e.Match) > 0 {
 			for i, v := range e.Strings {
 				if m, ok := e.Match[i]; ok {
@@ -57,12 +58,16 @@ func (e LangConfigEntry) Patch(f *lang.File) error {
 							if err := r.SetCellString(i, v); err != nil {
 								return err
 							}
+							matched = true
 						}
 					}
 				} else {
 					return fmt.Errorf("no match specified for: %s", v)
 				}
 			}
+		}
+		if matched {
+			return nil
 		}
 		return errors.New("no target matched")
 	}

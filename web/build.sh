@@ -30,11 +30,26 @@ else
   rm -r "$out/presets/"*
 fi
 
+# Compile the ELF-patch stub sources
+for mk in patch-presets/*/src/Makefile; do
+  [ -e "$mk" ] || continue
+  echo "building stubs in $(dirname "$mk")"
+  make -C "$(dirname "$mk")"
+done
+
 for f in patch-presets/*; do
+  presetName=$(basename "${f}")
+  case "$presetName" in *-common) continue;; esac
   if [ -d "${f}" ]; then
-    presetName=$(basename "${f}")
+    zipPath="$(cd "$out/presets" && pwd)/${presetName}.zip"
     pushd "${f}"
-    zip -r -9 -o -X "../../$out/presets/${presetName}.zip" .
+    if [ -f .include ]; then
+      while IFS= read -r inc; do
+        [ -n "$inc" ] || continue
+        (cd "../$inc" && zip -r -9 -o -X "$zipPath" . -x 'src/*.[ch]' 'src/Makefile' 'src/.gitignore')
+      done < .include
+    fi
+    zip -r -9 -o -X "$zipPath" . -x '.include'
     popd
   else
     cp -v "${f}" "$out/presets"

@@ -17,7 +17,6 @@ import (
 func main() {
 	inPath := flag.String("in", "", "input MAIN.bin file path or FRM")
 	outPath := flag.String("out", "", "output folder for partitions. Defaults to -in base directory")
-	splitChar := flag.Int("split", firmware.MainPartitionSplitCharacter, "split character. 0x0a for newline, 0x20 for space")
 	flag.Parse()
 
 	if *inPath == "" {
@@ -68,13 +67,17 @@ func main() {
 		panic(err)
 	}
 
-	parts, err := firmware.SplitPartitions(buf, uint8(*splitChar))
+	table, err := firmware.ParseCommandLine(buf)
+	if err != nil {
+		panic(err)
+	}
+	parts, err := firmware.SplitPartitions(buf, table)
 	if err != nil {
 		panic(err)
 	}
 
 	for _, part := range parts {
-		fmt.Printf("partition %02d %s, offset 0x%08x, size 0x%08x\n", part.Index, part.Name, part.Offset, len(part.Data))
+		fmt.Printf("partition %02d %s, offset 0x%08x, size 0x%08x, flags %q, root %v\n", part.Index, part.Name, part.Offset, len(part.Data), part.Flags, part.Root)
 		ext := "img"
 		if fs, err := cramfs.NewCramFS(part.Data); err == nil {
 			ext = "cramfs"

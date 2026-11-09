@@ -1,0 +1,55 @@
+# apl_mgr: service/factory-mode state machine.
+# Host-internal addresses are per-build; 1.76 and 1.82 share this layout.
+objects:
+  cmd: src/apl_mgr_cmd.o
+  state: src/apl_mgr_state.o
+caves:
+  - slack: {}
+pokes:
+  # Remap the service key codes (0x82/0x89/0xf2 -> 0x80) and the states they set.
+  - { name: key1, anchor: { strxref: "NOT PON R_lib cancel" }, at: { pattern: "82 2b 04 bf 02" }, write: "80 2b 04 bf 03" }
+  - { name: key2, anchor: { strxref: "NOT PON R_lib cancel" }, at: { pattern: "89 2b 04 bf 04" }, write: "80 2b 04 bf 05" }
+  - { name: key3, anchor: { strxref: "NOT PON R_lib cancel" }, at: { pattern: "f2 2b 04 bf 06" }, write: "80 2b 04 bf 06" }
+edits:
+  - name: dispatcher
+    anchor: { va: 0x14bd8, expect: "d0 f8 e4 30 70 b5 4d f6 60 14" }
+    action: place
+    object: cmd
+    cover: 528
+    externals:
+      CMD:         { va: 0x7d960, used_by: &cmd_use { va: 0x14e36, expect: "c0 f2 07 03 01 21 1a 70" } }
+      STATE_7D548: { va: 0x7d548, used_by: { va: 0x14dee, expect: "c0 f2 07 04 83 b0 23 68" } }
+      ODA_DEV:     { string: "/dev/dtvrec/rtsc/oda" }
+
+  # Handlers redirected from the dispatch table. returns: 1 = DONE, 2 = ERR.
+  - name: state1
+    anchor: { va: 0x14f04, expect: "d0 f8 e4 30 33 2b 04 bf" }
+    action: hook
+    ctx: true
+    object: state
+    entry: mgr_state_1
+    externals: &state_externals
+      CMD: { va: 0x7d960, used_by: *cmd_use }
+      svc: { va: 0x14bd9, expect: "d0 f8 e4 30 70 b5 4d f6 60 14" }
+      chk: { va: 0x14b15, expect: "d0 f8 e4 30 10 3b 08 2b" }
+      post_a: { va: 0x23f65, expect: "01 23 c0 f8 4c 31 10 20" }
+      post_b: { va: 0x22b79, expect: "10 b5 04 46 86 b0 f2 f7 77 fe" }
+    returns: &state_returns
+      - { va: 0x14e4f, expect: "03 b0 30 bd 01 3b 09 2b" }
+      - { va: 0x14e31, expect: "4d f6 60 13 00 22 c0 f2 07 03 01 21 1a 70" }
+  - name: state2
+    anchor: { va: 0x14f14, expect: "d0 f8 e4 30 17 2b 04 bf" }
+    action: hook
+    ctx: true
+    object: state
+    entry: mgr_state_2
+    externals: *state_externals
+    returns: *state_returns
+  - name: state3
+    anchor: { va: 0x14f24, expect: "ff f7 f6 fd 00 28 81 d1" }
+    action: hook
+    ctx: true
+    object: state
+    entry: mgr_state_3
+    externals: *state_externals
+    returns: *state_returns

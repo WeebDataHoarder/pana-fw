@@ -1,0 +1,26 @@
+# apl_meda_bdplay: force BD region / default font
+pokes:
+  - name: region-byte-0
+    anchor: { strxref: "esl_tst_PreDisplay" }
+    at: { pattern: "ff 32 19 46" }
+    write: "e1"
+  - name: region-r2-a
+    anchor: { strxref: "esl_tst_PreDisplay" }
+    at: { pattern: "50 22 c9", occurrence: 1 }
+    write: "00 22 c4"
+  - name: region-r2-b
+    anchor: { strxref: "esl_tst_PreDisplay" }
+    at: { pattern: "50 22 c9", occurrence: 2 }
+    write: "00 22 c4"
+  - name: region-r3-a
+    anchor: { strxref: "esl_tst_PreDisplay" }
+    at: { pattern: "50 23 c9", occurrence: 1 }
+    write: "00 23 c4"
+  - name: region-r3-b
+    anchor: { strxref: "esl_tst_PreDisplay" }
+    at: { pattern: "50 23 c9", occurrence: 2 }
+    write: "00 23 c4"
+  - name: font-path
+    anchor: { string: "/usr/local/fonts/ZYXiSong_GB18030_c.ttf" }
+    at: { offset: 17 }
+    write: "66 30 31 35 30 30 33 74 2e 74 74 66 00 00 00 00 00 00 00 00 00 00"

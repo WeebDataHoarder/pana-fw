@@ -1,0 +1,12 @@
+# apl_meda_dvdv: region override via ENABLE_RAD
+objects:
+  dvdv: src/apl_meda_dvdv.o
+caves:
+  - reclaim: { strxref: "apl_meda_dvdv_3D_power_effect" }
+edits:
+  - name: region-override
+    anchor: { strxref: "From EEPROM(Audio Lang). sprm16 = %x. sprm17 = %x. audio_sel = %x." }
+    at: { pattern: "45 f2 55 31" } # movw r1, #0x5355
+    action: detour
+    object: dvdv
+    entry: dvdv_region

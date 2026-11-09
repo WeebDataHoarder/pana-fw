@@ -281,17 +281,15 @@ func (m *ModuleEntries) FromBuffer(buf []byte, allowSlowSearch bool) (err error)
 	for {
 		var mod Module
 		if err := mod.FromReader(r, m.Sum, m.ExpandedKey); err != nil {
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, ErrEndOfModuleTable) {
 				break
 			}
-			m.Entries = append(m.Entries, nil)
-			isProbablyModule := mod.Header.OEM == OEMPanasonic && mod.Header.CompressionType <= 3 && mod.Header.FormatFlag <= 1 && mod.Header.Unknown3 == [3]byte{}
-			if slices.Contains(KnownModuleHeaderNames, mod.Header.Name) && isProbablyModule {
-				return fmt.Errorf("while decoding %s %s: %w", utils.CString(mod.Header.Name[:]), utils.CString(mod.Header.Version[:]), err)
-			} else if isProbablyModule && errors.Is(err, ErrNotModule) {
-				return fmt.Errorf("possible module header %s not properly detected: %#+v: %w", mod.Header.Name, mod.Header, err)
+			slot := len(m.Entries)
+			if slot*moduleEntrySize < m.Offset || errors.Is(err, ErrInvalidHeaderChecksum) {
+				m.Entries = append(m.Entries, nil)
+				continue
 			}
-			continue
+			return fmt.Errorf("while decoding module slot %d (%s %s): %w", slot, utils.CString(mod.Header.Name[:]), utils.CString(mod.Header.Version[:]), err)
 		}
 		m.Entries = append(m.Entries, &mod)
 	}
@@ -325,7 +323,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 
 	for i, mod := range m.Entries {
 		if mod == nil {
-			if _, err = w.Write(m.Header[i*48 : i*48+48]); err != nil {
+			if _, err = w.Write(m.Header[i*moduleEntrySize : (i+1)*moduleEntrySize]); err != nil {
 				return nil, err
 			}
 		} else {
@@ -337,7 +335,7 @@ func (m *ModuleEntries) ToBuffer() (buf []byte, err error) {
 
 	buf = w.Bytes()
 
-	if m.AESKey != nil && m.Offset == 48 {
+	if m.Offset == moduleEntrySize {
 		binary.LittleEndian.PutUint32(buf[36:], uint32(len(buf)))
 		binary.LittleEndian.PutUint32(buf[44:], m.Sum(buf[:44]))
 	}
@@ -387,11 +385,15 @@ type Module struct {
 
 const FileHeaderSize = 0x1800
 
+const moduleEntrySize = 48
+
 const OEMPanasonic byte = 'M'
 
 var ErrInvalidHeaderChecksum = errors.New("invalid header checksum")
 var ErrInvalidDataChecksum = errors.New("invalid data checksum")
 var ErrNotModule = errors.New("not a module")
+
+var ErrEndOfModuleTable = errors.New("end of module table")
 
 func (m *Module) ToWriter(w io.WriteSeeker, sumFunc func([]byte) uint32, key *crypto.ExpandedCustomKey) (err error) {
 	m.Header.Size = uint32(len(m.RawData))
@@ -478,7 +480,7 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 	}
 
 	if off > FileHeaderSize {
-		return io.EOF
+		return ErrEndOfModuleTable
 	}
 
 	if _, err = binary.Decode(hdrBuf[:], binary.LittleEndian, &m.Header); err != nil {
@@ -504,7 +506,7 @@ func (m *Module) FromReader(r io.ReadSeeker, sumFunc func([]byte) uint32, key *c
 	defer r.Seek(off, io.SeekStart)
 
 	var n int
-	m.RawData = make([]byte, utils.Align(m.Header.Size, 16))
+	m.RawData = make([]byte, utils.Align(m.Header.Size, 8))
 	if n, err = io.ReadFull(r, m.RawData); err != nil {
 		return fmt.Errorf("reading data (read %d, expected %d): %w", n, len(m.RawData), err)
 	}
